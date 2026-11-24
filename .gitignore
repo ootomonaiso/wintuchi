@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# venv
+.venv/
+envmon-venv/
+
+# PyInstaller 作業領域（生成物 dist/EnvMonitor.exe は配布物として追跡）
+build/_work/
+
+# エディタ/OS
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# ランタイムで生成される可能性のあるローカル設定（配布サンプルは packaging/ 管理）
+envmon.log

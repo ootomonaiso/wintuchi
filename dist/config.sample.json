@@ -1,0 +1,33 @@
+{
+  "url": "http://192.168.1.10/env1.php",
+  "poll_interval_sec": 30,
+  "request_timeout_sec": 10,
+  "teams_webhook_url": "",
+  "cooldown_minutes": 15,
+  "quiet_hours": { "enabled": false, "start": "22:00", "end": "07:00" },
+  "stale_minutes": 10,
+  "run_at_startup": false,
+  "labels": { "ok": "正常", "warn": "注意", "critical": "要確認", "stale": "応答なし" },
+  "hysteresis": { "temp": 0.5, "humid": 2.0 },
+  "sensors": {},
+  "rooms": {
+    "会議室A": {
+      "temp": { "min": 18.0, "max": 28.0 },
+      "humid": { "min": 30.0, "max": 70.0 },
+      "lux_gate": { "mode": "off", "value": 50.0 },
+      "channels": { "toast": true, "teams": true },
+      "stale_enabled": true
+    }
+  },
+  "widget": {
+    "enabled": true,
+    "items": [
+      { "room": "会議室A", "metric": "temp" },
+      { "room": "会議室A", "metric": "humid" }
+    ],
+    "dock": "taskbar",
+    "pos": null,
+    "taskbar_gap": 8,
+    "opacity": 0.97
+  }
+}

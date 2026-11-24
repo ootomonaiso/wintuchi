@@ -9,6 +9,7 @@ import copy
 import json
 import logging
 import os
+import sys
 import threading
 from pathlib import Path
 from typing import Any
@@ -18,9 +19,31 @@ log = logging.getLogger(__name__)
 APP_DIR_NAME = "EnvMonitor"
 
 
+def _exe_dir() -> Path:
+    """実行ファイル（配布 exe）が置かれているフォルダ。ソース実行時はプロジェクト直下。"""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    # ソース実行: run_envmon.py のある場所（= パッケージの1つ上）
+    return Path(__file__).resolve().parent.parent
+
+
 def app_data_dir() -> Path:
-    base = os.environ.get("APPDATA") or str(Path.home())
-    d = Path(base) / APP_DIR_NAME
+    """設定・ログの保存先を決める。
+
+    優先順位:
+      1. 環境変数 ENVMON_DATA_DIR（明示指定）
+      2. **ポータブル**: exe と同じフォルダに config.json があればそこを使う
+         （フォルダごとコピーして別PCへ持ち運べる）
+      3. 既定: %APPDATA%\\EnvMonitor
+    """
+    override = os.environ.get("ENVMON_DATA_DIR")
+    if override:
+        d = Path(override)
+    elif (_exe_dir() / "config.json").exists():
+        d = _exe_dir()  # ポータブル運用
+    else:
+        base = os.environ.get("APPDATA") or str(Path.home())
+        d = Path(base) / APP_DIR_NAME
     d.mkdir(parents=True, exist_ok=True)
     return d
 

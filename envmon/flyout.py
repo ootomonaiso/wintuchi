@@ -137,6 +137,7 @@ class Flyout:
         self.hide() if self._visible else self.show()
 
     def show(self) -> None:
+        # 位置・中身を withdraw 中に確定してから一度だけ表示する（ちらつき防止）。
         self.refresh()
         self.win.update_idletasks()
         w = PANEL_W
@@ -145,9 +146,8 @@ class Flyout:
         x = right - w - MARGIN
         y = bottom - h - MARGIN
         self.win.geometry(f"{w}x{h}+{x}+{y}")
+        self.win.attributes("-topmost", True)  # 表示前に最前面指定（出した後に動かさない）
         self.win.deiconify()
-        self.win.lift()
-        self.win.attributes("-topmost", True)
         self.win.focus_force()
         self._visible = True
 

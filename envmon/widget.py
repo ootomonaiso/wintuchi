@@ -41,6 +41,9 @@ class DesktopWidget:
         self._on_settings = on_settings
         self._visible = False
         self._drag = (0, 0)
+        self._drag_origin = (0, 0)
+        self._dragging = False            # 閾値を超えて実際に動かし始めたか
+        self._last_geom = None            # 直近に適用した geometry（重複適用の抑止）
         self._follow_job = None
 
         self.win = ctk.CTkToplevel(master)
@@ -140,6 +143,14 @@ class DesktopWidget:
             self._body.pack(fill="both", expand=True, padx=10, pady=(6, 10))
 
     # --- 位置決め ---
+    def _apply_geometry(self, spec: str) -> bool:
+        """geometry を適用する。前回と同じなら何もしない（無駄な再描画＝ちらつき防止）。"""
+        if spec == self._last_geom:
+            return False
+        self.win.geometry(spec)
+        self._last_geom = spec
+        return True
+
     def _position_float(self) -> None:
         pos = self.config.get("widget", {}).get("pos")
         w = self.win.winfo_reqwidth()
@@ -150,7 +161,7 @@ class DesktopWidget:
             left, top, right, bottom = geometry.work_area()
             x = right - w - 16
             y = bottom - h - 16
-        self.win.geometry(f"{w}x{h}+{x}+{y}")
+        self._apply_geometry(f"{w}x{h}+{x}+{y}")
 
     def _manual_pos(self) -> bool:
         pos = self.config.get("widget", {}).get("pos")
@@ -169,17 +180,17 @@ class DesktopWidget:
         y = g.top + max(0, (g.height - h) // 2)
         return x, y
 
-    def _position_taskbar(self) -> None:
+    def _position_taskbar(self) -> bool:
         g = geometry.find_taskbar()
         if not g or not g.horizontal:
             self._position_float()
-            return
+            return False
         self.win.update_idletasks()
         w = self.win.winfo_reqwidth()
         # タスクバーより背が高いと「浮いて」見えるので、必ずバー高さ内に収める。
         h = min(self.win.winfo_reqheight(), g.height)
         x, y = self._taskbar_xy(g, w, h)
-        self.win.geometry(f"{w}x{h}+{x}+{y}")
+        return self._apply_geometry(f"{w}x{h}+{x}+{y}")
 
     def reset_position(self) -> None:
         w = dict(self.config.get("widget", {}))
@@ -203,16 +214,27 @@ class DesktopWidget:
 
     def _follow_tick(self) -> None:
         if self._visible and self._dock() == "taskbar":
-            self._position_taskbar()
-            self.win.lift()
-            self.win.attributes("-topmost", True)
+            # 位置が変わった時だけ前面化を再適用する（毎回やると微妙にちらつく）。
+            if self._position_taskbar():
+                self.win.lift()
+                self.win.attributes("-topmost", True)
             self._follow_job = self.win.after(1200, self._follow_tick)
 
     # --- ドラッグ移動（全モードで有効。動かすと位置が固定される）---
+    _DRAG_THRESHOLD = 4   # これ未満の移動はクリックとみなし動かさない
+
     def _drag_start(self, e):
         self._drag = (e.x_root - self.win.winfo_x(), e.y_root - self.win.winfo_y())
+        self._drag_origin = (e.x_root, e.y_root)
+        self._dragging = False
 
     def _drag_move(self, e):
+        if not self._dragging:
+            ox, oy = self._drag_origin
+            if abs(e.x_root - ox) < self._DRAG_THRESHOLD and \
+               abs(e.y_root - oy) < self._DRAG_THRESHOLD:
+                return  # クリックの微動。まだ動かさない（ちらつき防止）
+            self._dragging = True
         nx = e.x_root - self._drag[0]
         if self._dock() == "taskbar":
             # タスクバー内では横のみ移動（縦はバー内に固定）。バー外へは出さない。
@@ -227,6 +249,10 @@ class DesktopWidget:
         self.win.geometry(f"+{nx}+{e.y_root - self._drag[1]}")
 
     def _drag_end(self, _e):
+        if not self._dragging:
+            return  # 動かしていない＝ただのクリック。再配置も保存もしない。
+        self._dragging = False
+        self._last_geom = None  # ドラッグ後は追従計算を一度通す
         if self._dock() == "taskbar":
             # 横移動量を「トレイ左端からの間隔」として記憶（追従は維持）。
             g = geometry.find_taskbar()

@@ -45,6 +45,12 @@ class App:
         ctk.set_default_color_theme("blue")
         self.root = ctk.CTk()
         self.root.withdraw()  # メインウィンドウは常に非表示（トレイ常駐）
+        # タスクバー/Alt+Tab に出さない（＝「通知領域(トレイ)に居るだけ」のアプリにする）。
+        # ツールウィンドウ属性を付けると、たとえ表示されてもタスクバーボタンを作らない。
+        try:
+            self.root.wm_attributes("-toolwindow", True)
+        except Exception:
+            pass
 
         self.flyout = Flyout(self.root, self.state, self.config,
                              on_room_click=self._open_settings_room,
