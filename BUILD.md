@@ -33,7 +33,7 @@ C:\Users\<you>\envmon-venv\Scripts\python.exe run_envmon.py
 pyinstaller build\envmon.spec --distpath dist --workpath build\_work --noconfirm
 copy packaging\config.sample.json  dist\config.json
 copy packaging\sensors.sample.json dist\sensors.json
-copy packaging\README-配布.txt     dist\
+copy packaging\README-deploy.txt   dist\
 ```
 生成物: `dist\EnvMonitor.exe`（単一ファイル・ウィンドウなし・トレイ常駐）。
 `build\envmon.spec` の `ONEFILE = False` で onedir ビルド（フォルダ配置）に切替可。

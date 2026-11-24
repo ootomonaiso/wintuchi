@@ -1,37 +1,38 @@
-# EnvMonitor ワンコマンドビルド.
-#   .\build.ps1              # exe をビルドし、dist に配布用ファイルを揃える
-#   .\build.ps1 -NoSamples   # サンプル config/sensors を dist にコピーしない
+# EnvMonitor one-command build.
+#   .\build.ps1              # build the exe and stage distributable files into dist\
+#   .\build.ps1 -NoSamples   # do not copy sample config/sensors into dist\
 #
-# 事前準備（別環境での初回のみ）:
-#   python -m venv C:\Users\<you>\envmon-venv   # OneDrive 配下を避ける
+# First-time setup on a new machine:
+#   python -m venv C:\Users\<you>\envmon-venv   # avoid OneDrive-synced folders
 #   C:\Users\<you>\envmon-venv\Scripts\python.exe -m pip install -r requirements.txt
+#
+# NOTE: ASCII-only on purpose so Windows PowerShell 5.1 parses it regardless of code page.
 param([switch]$NoSamples)
 
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
-# venv の python を自動検出（なければ PATH の python）
-$candidates = @(
-    "C:\Users\$env:USERNAME\envmon-venv\Scripts\python.exe",
-    "$root\.venv\Scripts\python.exe"
-)
-$python = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
-if (-not $python) { $python = "python" }
+# Pick the venv python if present, otherwise fall back to PATH python.
+$python = "python"
+$venv1 = "C:\Users\$env:USERNAME\envmon-venv\Scripts\python.exe"
+$venv2 = Join-Path $root ".venv\Scripts\python.exe"
+if (Test-Path $venv1) { $python = $venv1 }
+elseif (Test-Path $venv2) { $python = $venv2 }
 Write-Host "Using python: $python"
 
 & $python -m PyInstaller build\envmon.spec --distpath dist --workpath build\_work --noconfirm
-if ($LASTEXITCODE -ne 0) { throw "PyInstaller のビルドに失敗しました" }
+if ($LASTEXITCODE -ne 0) { throw "PyInstaller build failed" }
 
 if (-not $NoSamples) {
-    # 配布用の starter ファイルを dist に用意（ポータブル動作用）。
-    # 既存の dist\config.json は上書きしない（運用中の設定を壊さないため）。
+    # Starter files for portable operation. Do NOT overwrite an existing dist\config.json
+    # so a machine's live settings are preserved across rebuilds.
     if (-not (Test-Path "dist\config.json"))  { Copy-Item "packaging\config.sample.json"  "dist\config.json" }
     if (-not (Test-Path "dist\sensors.json")) { Copy-Item "packaging\sensors.sample.json" "dist\sensors.json" }
-    Copy-Item "packaging\README-配布.txt" "dist\README-配布.txt" -Force
+    Copy-Item "packaging\README-deploy.txt"   "dist\README-deploy.txt"   -Force -ErrorAction SilentlyContinue
     Copy-Item "packaging\config.sample.json"  "dist\config.sample.json"  -Force
     Copy-Item "packaging\sensors.sample.json" "dist\sensors.sample.json" -Force
 }
 
-Write-Host "`nビルド完了: dist\EnvMonitor.exe"
+Write-Host "`nBuild complete: dist\EnvMonitor.exe"
 Get-ChildItem dist | Select-Object Name, Length | Format-Table -AutoSize
