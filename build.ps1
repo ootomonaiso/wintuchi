@@ -12,10 +12,12 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $root
 
 # venv の python を自動検出（なければ PATH の python）
-$py = Get-ChildItem -ErrorAction SilentlyContinue `
+$candidates = @(
     "C:\Users\$env:USERNAME\envmon-venv\Scripts\python.exe",
-    "$root\.venv\Scripts\python.exe" | Select-Object -First 1
-$python = if ($py) { $py.FullName } else { "python" }
+    "$root\.venv\Scripts\python.exe"
+)
+$python = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+if (-not $python) { $python = "python" }
 Write-Host "Using python: $python"
 
 & $python -m PyInstaller build\envmon.spec --distpath dist --workpath build\_work --noconfirm
