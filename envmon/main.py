@@ -12,6 +12,7 @@ from .config import load_config, log_path
 from .flyout import Flyout
 from .model import AppState
 from .notifier import Notifier
+from .overlay_bridge import OverlayBridge, write_state as overlay_write_state
 from .poller import Poller
 from .settings_ui import SettingsWindow
 from .tray import Tray
@@ -61,6 +62,7 @@ class App:
                                        self.notifier, on_saved=self._on_settings_saved)
         self.poller = Poller(self.config, self.state, self.notifier,
                              on_update=self._on_poll_update)
+        self.overlay = OverlayBridge(self.config)
         self.tray = Tray(self.state,
                          on_open=self._req_toggle_flyout,
                          on_settings=self._req_open_settings,
@@ -87,6 +89,8 @@ class App:
         self.root.after(0, self.quit)
 
     def _on_poll_update(self):
+        # overlay 用 state.json を書き出す（poller スレッドで実行。Tk 非依存）。
+        overlay_write_state(self.state, self.config)
         self.root.after(0, self._apply_update)
 
     def _apply_update(self):
@@ -114,6 +118,7 @@ class App:
         if self.config.get("run_at_startup"):
             startup.set_startup(True)
         self.poller.start()
+        self.overlay.start()
         self.widget.apply_enabled()
         self.tray.run_detached()
         log.info("EnvMonitor 起動")
@@ -130,6 +135,10 @@ class App:
         self.root.quit()
 
     def _cleanup(self):
+        try:
+            self.overlay.stop()
+        except Exception:
+            pass
         try:
             self.poller.stop()
         except Exception:

@@ -106,6 +106,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "taskbar_gap": 8,
         "opacity": 0.96,
     },
+    # Rust 製タスクバーオーバーレイ（別プロセス）。詳細は overlay/README.md。
+    "overlay": {
+        # 起動時に overlay.exe を立ち上げ、ポーリング毎に state.json を書く。
+        "enabled": True,
+        # overlay.exe の明示パス（空なら EnvMonitor exe と同じ場所／環境変数を探索）。
+        "exe": "",
+    },
 }
 
 

@@ -55,10 +55,23 @@ use windows::Win32::UI::WindowsAndMessaging::{
 
 const KEY: COLORREF = COLORREF(0x0001_0101); // taskbar(透過)モードのキー色
 const TIMER_ID: usize = 1;
-const CFG_PATH: &str = "C:/Users/ootom/envmon-overlay.config.json";
-const LOG_PATH: &str = "C:/Users/ootom/envmon-overlay.log";
-// Python(EnvMonitor)が書く表示状態。あれば優先、無ければ内蔵 CPU/MEM を表示。
-const STATE_PATH: &str = "C:/Users/ootom/envmon-overlay.state.json";
+// 設定/状態/ログは %APPDATA%\EnvMonitor\ 配下（EnvMonitor 本体と共有）。
+fn base_dir() -> std::path::PathBuf {
+    let appdata = std::env::var("APPDATA").unwrap_or_else(|_| ".".into());
+    let d = std::path::Path::new(&appdata).join("EnvMonitor");
+    let _ = std::fs::create_dir_all(&d);
+    d
+}
+fn cfg_path() -> std::path::PathBuf {
+    base_dir().join("overlay.config.json")
+}
+fn log_path() -> std::path::PathBuf {
+    base_dir().join("overlay.log")
+}
+/// Python(EnvMonitor)が書く表示状態。あれば優先、無ければ内蔵 CPU/MEM を表示。
+fn state_path() -> std::path::PathBuf {
+    base_dir().join("overlay.state.json")
+}
 
 const WM_TRAY: u32 = WM_APP + 1;
 const TRAY_UID: u32 = 1;
@@ -181,17 +194,17 @@ static APP: OnceLock<Mutex<App>> = OnceLock::new();
 static SYS: OnceLock<Mutex<System>> = OnceLock::new();
 
 fn log(msg: &str) {
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(LOG_PATH) {
+    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(log_path()) {
         let _ = writeln!(f, "{}", msg);
     }
 }
 
 fn cfg_mtime() -> Option<SystemTime> {
-    std::fs::metadata(CFG_PATH).ok().and_then(|m| m.modified().ok())
+    std::fs::metadata(cfg_path()).ok().and_then(|m| m.modified().ok())
 }
 
 fn load_cfg() -> Cfg {
-    match std::fs::read_to_string(CFG_PATH) {
+    match std::fs::read_to_string(cfg_path()) {
         Ok(s) => serde_json::from_str::<Cfg>(&s).unwrap_or_else(|e| {
             log(&format!("config parse error -> defaults: {e}"));
             Cfg::default()
@@ -206,7 +219,7 @@ fn load_cfg() -> Cfg {
 
 fn save_cfg(c: &Cfg) {
     if let Ok(s) = serde_json::to_string_pretty(c) {
-        let _ = std::fs::write(CFG_PATH, s);
+        let _ = std::fs::write(cfg_path(), s);
     }
 }
 
@@ -248,7 +261,7 @@ fn sysinfo_chips(cfg: &Cfg) -> Vec<Chip> {
 
 /// Python が書いた state.json を読む（あれば優先）。
 fn read_state() -> Option<Vec<Chip>> {
-    let s = std::fs::read_to_string(STATE_PATH).ok()?;
+    let s = std::fs::read_to_string(state_path()).ok()?;
     let st: StateIn = serde_json::from_str(&s).ok()?;
     if st.chips.is_empty() {
         return None;
@@ -694,7 +707,7 @@ unsafe fn show_tray_menu(hwnd: HWND) {
             let _ = DestroyWindow(hwnd);
         }
         ID_OPENCFG => {
-            let _ = std::process::Command::new("notepad.exe").arg(CFG_PATH).spawn();
+            let _ = std::process::Command::new("notepad.exe").arg(cfg_path()).spawn();
         }
         ID_REDOCK => {
             {
@@ -886,7 +899,7 @@ extern "system" fn wndproc_entry(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -
 }
 
 fn main() {
-    let _ = std::fs::remove_file(LOG_PATH);
+    let _ = std::fs::remove_file(log_path());
     log("=== envmon-overlay PoC (grip-drag/dock/stacked/tray) ===");
 
     // 二重起動防止（分裂対策）。既に起動していれば何もせず終了。

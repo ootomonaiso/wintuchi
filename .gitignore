@@ -18,3 +18,6 @@ desktop.ini
 
 # ランタイムで生成される可能性のあるローカル設定（配布サンプルは packaging/ 管理）
 envmon.log
+
+# Rust overlay のビルド成果物（ソースのみ追跡）
+overlay/target/
