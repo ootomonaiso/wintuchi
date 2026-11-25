@@ -51,7 +51,7 @@ class DesktopWidget:
         self.win.overrideredirect(True)
         self.win.attributes("-topmost", True)
         try:
-            self.win.attributes("-alpha", float(config.get("widget", {}).get("opacity", 0.97)))
+            self.win.attributes("-alpha", float(config.get("widget", {}).get("opacity", 0.96)))
         except Exception:
             pass
 

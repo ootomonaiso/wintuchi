@@ -143,6 +143,14 @@ python -m taskwidget.examples.clock           # 時計
 python -m taskwidget.examples.system_monitor  # CPU/MEM
 ```
 
+## 開発者向けドキュメント
+コードを読む・手を入れる場合は `docs/` を参照してください。
+
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — 全体像・起動シーケンス・データフロー
+  （`/env1.php`→poller→rules→notifier）・スレッドモデル・状態管理。
+- [`docs/MODULES.md`](docs/MODULES.md) — `envmon/`・`taskwidget/`・`tools/` の
+  モジュール別リファレンス（責務・主要クラス/関数の早見表）。
+
 ## 既知の制約
 - Windows 11 は旧式の「タスクバー内埋め込みウィジェット(deskband)」API を廃止しているため、
   厳密な意味での“タスクバー内蔵”はできません。本アプリは公式の類似ツールと同じく、

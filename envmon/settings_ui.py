@@ -101,7 +101,7 @@ class SettingsWindow:
         self.win.geometry("640x710")
         self.win.configure(fg_color=theme.WINDOW)
         self.win.attributes("-topmost", True)
-        self.win.after(300, lambda: self.win.attributes("-topmost", False))
+        self.win.after(300, self._drop_topmost)
 
         self.tabs = ctk.CTkTabview(self.win, fg_color=theme.CARD,
                                    segmented_button_selected_color=theme.ACCENT,
@@ -317,6 +317,14 @@ class SettingsWindow:
                 text=msg, text_color=theme.SEV_TEXT[sev]))
 
         threading.Thread(target=work, name="conn-test", daemon=True).start()
+
+    def _drop_topmost(self) -> None:
+        # 300ms 後に最前面指定を解除。それまでに閉じられていても落ちないように。
+        try:
+            if self.win is not None and self.win.winfo_exists():
+                self.win.attributes("-topmost", False)
+        except Exception:
+            pass
 
     def _safe_after(self, fn) -> None:
         """別スレッドから UI 更新を安全にメインスレッドへ回す。"""

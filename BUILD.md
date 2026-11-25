@@ -2,6 +2,9 @@
 
 EnvMonitor を別の Windows PC でビルド・配布するための手順をまとめます。
 
+> 機能・使い方は [`README.md`](README.md)、コード内部の構成は
+> [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) / [`docs/MODULES.md`](docs/MODULES.md) を参照。
+
 ## 1. 必要なもの
 - Windows 10/11
 - Python 3.11〜3.13（64bit）

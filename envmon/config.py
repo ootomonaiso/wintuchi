@@ -125,6 +125,8 @@ class Config:
 
     def __init__(self, data: dict[str, Any]):
         self.lock = threading.RLock()
+        # ファイル書き込みを直列化する専用ロック（poller/GUI の同時保存対策）。
+        self._save_lock = threading.Lock()
         self._data = data
         self._sensors_mtime: float = 0.0
 
@@ -178,7 +180,11 @@ class Config:
         self.save()
 
     def save(self) -> None:
-        self._atomic_write(config_path(), self._snapshot_for_save())
+        # 書き込み自体を直列化（poller スレッドの reload_sensors と
+        # GUI の保存が同時に走っても tmp ファイルを壊さない）。
+        data = self._snapshot_for_save()
+        with self._save_lock:
+            self._atomic_write(config_path(), data)
 
     def _snapshot_for_save(self) -> dict[str, Any]:
         with self.lock:
@@ -186,13 +192,20 @@ class Config:
 
     @staticmethod
     def _atomic_write(path: Path, data: Any) -> None:
-        tmp = path.with_suffix(path.suffix + ".tmp")
+        # tmp 名にプロセス/スレッド固有の接尾辞を付け、万一同時書き込みが
+        # 起きても互いの中間ファイルを踏まないようにする。
+        tmp = path.with_suffix(f"{path.suffix}.{os.getpid()}.{threading.get_ident()}.tmp")
         try:
             with open(tmp, "w", encoding="utf-8") as f:
                 json.dump(data, f, ensure_ascii=False, indent=2)
             os.replace(tmp, path)
         except OSError as e:
             log.error("ファイル保存に失敗(%s): %s", path.name, e)
+            try:
+                if tmp.exists():
+                    tmp.unlink()
+            except OSError:
+                pass
 
     # --- センサ対応表（sensors.json）---
     # ※sensors.json はユーザー専用の権威ファイル。アプリは読むだけで書き込まない。

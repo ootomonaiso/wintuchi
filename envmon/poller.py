@@ -122,9 +122,18 @@ class Poller:
                 self._poll_once()
             except Exception as e:  # ワーカを止めない
                 log.exception("ポーリング中に例外: %s", e)
-            interval = max(5, int(self.config.get("poll_interval_sec", 30)))
+            # 間隔の解決も失敗でワーカを止めない（手編集の config.json で
+            # poll_interval_sec が null/文字列でも既定値へフォールバック）。
+            interval = self._poll_interval()
             self._wake.wait(timeout=interval)
             self._wake.clear()
+
+    def _poll_interval(self) -> int:
+        try:
+            return max(5, int(self.config.get("poll_interval_sec", 30)))
+        except (TypeError, ValueError):
+            log.warning("poll_interval_sec が不正。既定30秒を使用")
+            return 30
 
     def _poll_once(self) -> None:
         # 外部で sensors.json が編集されていれば取り込む

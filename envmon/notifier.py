@@ -67,8 +67,10 @@ class Notifier:
             with self._lock:
                 self._last_notified.pop(key, None)
 
-        # 静音時間中はトースト/Teamsを抑制（フライアウト側のバッジは別途反映される）
-        if in_quiet_hours(global_cfg, now):
+        # 静音時間中は「異常」通知のみ抑制する。復旧(recovery)は「常に1回」通知する
+        # 設計なので、静音時間でも握りつぶさず知らせる（夜間に復旧が消えて
+        # 翌朝まで誤解する事故を防ぐ）。画面上のバッジは別途反映される。
+        if ev.kind == "alert" and in_quiet_hours(global_cfg, now):
             log.info("静音時間のため通知抑制: %s", ev.message)
             return
 
