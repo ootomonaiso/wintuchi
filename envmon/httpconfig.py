@@ -204,7 +204,10 @@ class ConfigServer(ThreadingHTTPServer):
 
     def stop(self) -> None:
         try:
-            self.shutdown()
+            # serve_forever を起動済みのときだけ shutdown（未起動だと shutdown は
+            # 永久待機するため）。
+            if self._thread is not None and self._thread.is_alive():
+                self.shutdown()
             self.server_close()
         except Exception:
             pass

@@ -1,12 +1,10 @@
-"""共通デザイントークン（配色・フォント・角丸・バッジ・ゲージ）.
+"""共通デザイントークン（配色・状態バッジ）.
 
-3画面（フライアウト / 常駐ウィジェット / 設定）で見た目を統一するための
-単一の情報源。色は (light, dark) のタプルで持ち、CustomTkinter ウィジェットには
-そのまま渡せる。生の tk.Canvas 等には ``resolve()`` で現在モードの色へ解決する。
+ヘッドレス化以降、描画は Rust オーバーレイ側が担うため Tk 依存は持たない。
+ここは「色の単一の情報源」。色は (light, dark) のタプルで持ち、
+``resolve()`` で現在の外観モード（Windows のレジストリ設定）の単色へ解決する。
 """
 from __future__ import annotations
-
-import customtkinter as ctk
 
 from .model import Severity
 
@@ -59,60 +57,28 @@ R_PILL = 20
 PAD = 12          # 基準パディング
 GAP = 6           # 要素間の基準ギャップ
 
-# ===================== セグメントバー =====================
-SEG_N = 14
-SEG_GAP = 2
-SEG_W = 130
-SEG_H = 9
+
+def system_uses_light_theme() -> bool:
+    """Windows の「アプリの既定モード」が Light かをレジストリから読む。失敗時は True。"""
+    try:
+        import winreg
+        key = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+        try:
+            val, _ = winreg.QueryValueEx(key, "AppsUseLightTheme")
+            return bool(val)
+        finally:
+            winreg.CloseKey(key)
+    except OSError:
+        return True
 
 
 def resolve(color) -> str:
     """(light, dark) タプル or 単色 を、現在の外観モードの単色に解決する。"""
     if isinstance(color, (tuple, list)):
-        return color[1] if ctk.get_appearance_mode() == "Dark" else color[0]
+        return color[0] if system_uses_light_theme() else color[1]
     return color
-
-
-def font(size: int = 12, weight: str = "normal") -> ctk.CTkFont:
-    """CTkFont を生成（root 生成後に呼ぶこと）。"""
-    return ctk.CTkFont(size=size, weight=weight)
-
-
-def make_segbar(parent, frac: float, color: str, *, surface=CARD,
-                width: int = SEG_W, height: int = SEG_H,
-                n: int = SEG_N) -> "ctk.CTkCanvas":
-    """分割ブロック状のプログレスバーを Canvas で描画する。
-
-    ``surface`` はバーが乗る面の色（Canvas は透明にできないため地色を合わせる）。
-    """
-    import tkinter as tk
-
-    bg = resolve(surface)
-    empty = resolve(INSET)
-    c = tk.Canvas(parent, width=width, height=height, bg=bg,
-                  highlightthickness=0, bd=0)
-    seg_w = (width - (n - 1) * SEG_GAP) / n
-    frac = max(0.0, min(1.0, frac))
-    filled = int(round(frac * n))
-    if frac > 0 and filled == 0:
-        filled = 1  # わずかでも値があれば最低1セル点灯
-    r = max(1, height // 2)
-    for i in range(n):
-        x0 = i * (seg_w + SEG_GAP)
-        col = color if i < filled else empty
-        _round_rect(c, x0, 0, x0 + seg_w, height, r, col)
-    return c
-
-
-def _round_rect(canvas, x0, y0, x1, y1, r, fill) -> None:
-    """角丸矩形を Canvas に描く（細セル向けの簡易版）。"""
-    r = min(r, (x1 - x0) / 2, (y1 - y0) / 2)
-    canvas.create_oval(x0, y0, x0 + 2 * r, y0 + 2 * r, fill=fill, outline="")
-    canvas.create_oval(x1 - 2 * r, y0, x1, y0 + 2 * r, fill=fill, outline="")
-    canvas.create_oval(x0, y1 - 2 * r, x0 + 2 * r, y1, fill=fill, outline="")
-    canvas.create_oval(x1 - 2 * r, y1 - 2 * r, x1, y1, fill=fill, outline="")
-    canvas.create_rectangle(x0 + r, y0, x1 - r, y1, fill=fill, outline="")
-    canvas.create_rectangle(x0, y0 + r, x1, y1 - r, fill=fill, outline="")
 
 
 def label_for(sev: Severity, cfg: dict | None) -> str:

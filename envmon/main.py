@@ -1,24 +1,24 @@
-"""エントリポイント: 単一起動・UI/poller/tray の統合."""
+"""エントリポイント: 単一起動・ヘッドレス（poller / tray / 設定HTTP / overlay）.
+
+UI（表示）は Rust 製オーバーレイ（別プロセス）が担い、設定はローカル HTTP の
+HTML ダッシュボードで行う。この Python プロセスは GUI ツールキットに依存しない。
+"""
 from __future__ import annotations
 
 import logging
 import logging.handlers
 import sys
+import threading
 import webbrowser
-
-import customtkinter as ctk
 
 from . import startup
 from .config import load_config, log_path
-from .flyout import Flyout
 from .httpconfig import ConfigServer
 from .model import AppState
 from .notifier import Notifier
 from .overlay_bridge import OverlayBridge, write_state as overlay_write_state
 from .poller import Poller
-from .settings_ui import SettingsWindow
 from .tray import Tray
-from .widget import DesktopWidget
 
 log = logging.getLogger(__name__)
 
@@ -43,47 +43,32 @@ class App:
         self.config = load_config()
         self.state = AppState()
         self.notifier = Notifier()
+        self._overlay_visible = True
+        self._stop = threading.Event()
 
-        ctk.set_appearance_mode("system")
-        ctk.set_default_color_theme("blue")
-        self.root = ctk.CTk()
-        self.root.withdraw()  # メインウィンドウは常に非表示（トレイ常駐）
-        # タスクバー/Alt+Tab に出さない（＝「通知領域(トレイ)に居るだけ」のアプリにする）。
-        # ツールウィンドウ属性を付けると、たとえ表示されてもタスクバーボタンを作らない。
-        try:
-            self.root.wm_attributes("-toolwindow", True)
-        except Exception:
-            pass
-
-        self.flyout = Flyout(self.root, self.state, self.config,
-                             on_room_click=self._open_settings_room,
-                             on_settings=self._open_settings)
-        self.widget = DesktopWidget(self.root, self.state, self.config,
-                                    on_settings=self._open_settings)
-        self.settings = SettingsWindow(self.root, self.config, self.state,
-                                       self.notifier, on_saved=self._on_settings_saved)
         self.poller = Poller(self.config, self.state, self.notifier,
                              on_update=self._on_poll_update)
         self.overlay = OverlayBridge(self.config)
         # 設定用ローカル HTTP（Tk 設定画面の後継。tray「設定」からブラウザで開く）
         self.httpserver = ConfigServer(self.config, self.state, self._apply_web_config)
         self.tray = Tray(self.state,
-                         on_open=self._req_toggle_flyout,
-                         on_settings=self._req_open_web_settings,
+                         on_toggle=self._toggle_overlay,
+                         on_settings=self._open_web_settings,
                          on_refresh=self.poller.poll_now,
-                         on_quit=self._req_quit,
-                         on_widget=self._req_toggle_widget,
-                         on_widget_reset=self._req_reset_widget)
-        self._quitting = False
+                         on_quit=self._req_quit)
 
-    # --- スレッド跨ぎのマーシャリング（tray/poller スレッド -> Tk main） ---
-    def _req_toggle_flyout(self):
-        self.root.after(0, self.flyout.toggle)
+    # --- tray/poller/HTTP スレッドから直接呼ばれる（Tk 非依存なのでマーシャリング不要）---
+    def _on_poll_update(self):
+        overlay_write_state(self.state, self.config, visible=self._overlay_visible)
+        self.tray.refresh()
 
-    def _req_open_settings(self):
-        self.root.after(0, self._open_settings)
+    def _toggle_overlay(self):
+        """オーバーレイの表示/非表示を切り替える（state.json の visible を書き換え）。"""
+        self._overlay_visible = not self._overlay_visible
+        overlay_write_state(self.state, self.config, visible=self._overlay_visible)
+        log.info("オーバーレイ表示: %s", self._overlay_visible)
 
-    def _req_open_web_settings(self):
+    def _open_web_settings(self):
         """tray「設定」: ローカル HTTP の設定ダッシュボードをブラウザで開く。"""
         try:
             webbrowser.open(self.httpserver.url)
@@ -94,49 +79,12 @@ class App:
         """HTML ダッシュボードからの保存を適用する（HTTP スレッドから呼ばれる）。"""
         startup.set_startup(bool(clean.get("run_at_startup", False)))
         self.config.replace(clean)
-        self.poller.poll_now()
+        self.poller.poll_now()          # → _on_poll_update が state.json を書き直す
         self.overlay.apply_enabled()
-        # Tk の更新はメインスレッドへマーシャリング
-        self.root.after(0, self._apply_saved)
-
-    def _apply_saved(self):
         self.tray.refresh()
-        self.widget.apply_enabled()
-        self.widget.refresh()
-
-    def _req_toggle_widget(self):
-        self.root.after(0, self.widget.toggle)
-
-    def _req_reset_widget(self):
-        self.root.after(0, self.widget.reset_position)
 
     def _req_quit(self):
-        self.root.after(0, self.quit)
-
-    def _on_poll_update(self):
-        # overlay 用 state.json を書き出す（poller スレッドで実行。Tk 非依存）。
-        overlay_write_state(self.state, self.config)
-        self.root.after(0, self._apply_update)
-
-    def _apply_update(self):
-        self.tray.refresh()
-        if getattr(self.flyout, "_visible", False):
-            self.flyout.refresh()
-        if getattr(self.widget, "_visible", False):
-            self.widget.refresh()
-
-    def _open_settings(self, room: str | None = None):
-        self.flyout.hide()
-        self.settings.open(room)
-
-    def _open_settings_room(self, room: str):
-        self._open_settings(room)
-
-    def _on_settings_saved(self):
-        self.poller.poll_now()
-        self.tray.refresh()
-        self.widget.refresh()
-        self.widget.apply_enabled()
+        self._stop.set()
 
     def run(self):
         # 設定に沿って自動起動状態を同期
@@ -145,42 +93,22 @@ class App:
         self.poller.start()
         self.overlay.start()
         self.httpserver.start()
-        self.widget.apply_enabled()
         self.tray.run_detached()
-        log.info("EnvMonitor 起動")
+        log.info("EnvMonitor 起動（ヘッドレス）")
         try:
-            self.root.mainloop()
+            self._stop.wait()
         finally:
             self._cleanup()
 
-    def quit(self):
-        if self._quitting:
-            return
-        self._quitting = True
-        log.info("終了処理")
-        self.root.quit()
-
     def _cleanup(self):
-        try:
-            self.httpserver.stop()
-        except Exception:
-            pass
-        try:
-            self.overlay.stop()
-        except Exception:
-            pass
-        try:
-            self.poller.stop()
-        except Exception:
-            pass
-        try:
-            self.tray.stop()
-        except Exception:
-            pass
-        try:
-            self.root.destroy()
-        except Exception:
-            pass
+        for name, fn in (("httpserver", self.httpserver.stop),
+                         ("overlay", self.overlay.stop),
+                         ("poller", self.poller.stop),
+                         ("tray", self.tray.stop)):
+            try:
+                fn()
+            except Exception:
+                log.debug("%s の停止で例外", name, exc_info=True)
 
 
 def main() -> int:

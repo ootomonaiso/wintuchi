@@ -73,10 +73,13 @@ def build_chips(state, config: Config) -> list[dict[str, Any]]:
     return chips
 
 
-def write_state(state, config: Config) -> None:
-    """overlay 用の state.json を原子的に書き出す（単一書き手）。"""
+def write_state(state, config: Config, visible: bool = True) -> None:
+    """overlay 用の state.json を原子的に書き出す（単一書き手）。
+
+    ``visible`` が False なら overlay はウィンドウを隠す（プロセスは常駐のまま）。
+    """
     try:
-        data = {"chips": build_chips(state, config)}
+        data = {"visible": bool(visible), "chips": build_chips(state, config)}
         p = state_path()
         tmp = p.with_suffix(p.suffix + f".{os.getpid()}.tmp")
         with open(tmp, "w", encoding="utf-8") as f:

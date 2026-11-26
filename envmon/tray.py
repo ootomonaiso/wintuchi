@@ -15,25 +15,19 @@ log = logging.getLogger(__name__)
 
 class Tray:
     def __init__(self, state: AppState,
-                 on_open: Callable[[], None],
+                 on_toggle: Callable[[], None],
                  on_settings: Callable[[], None],
                  on_refresh: Callable[[], None],
-                 on_quit: Callable[[], None],
-                 on_widget: Callable[[], None],
-                 on_widget_reset: Callable[[], None]):
+                 on_quit: Callable[[], None]):
         self.state = state
-        self._on_open = on_open
+        self._on_toggle = on_toggle
         self._on_settings = on_settings
         self._on_refresh = on_refresh
         self._on_quit = on_quit
-        self._on_widget = on_widget
-        self._on_widget_reset = on_widget_reset
         self._severity = Severity.OK
 
         menu = Menu(
-            MenuItem("開く", self._handle_open, default=True),
-            MenuItem("ウィジェット表示/非表示", self._handle_widget),
-            MenuItem("ウィジェット位置をリセット", self._handle_widget_reset),
+            MenuItem("オーバーレイ表示/非表示", self._handle_toggle, default=True),
             MenuItem("設定…", self._handle_settings),
             MenuItem("今すぐ更新", self._handle_refresh),
             Menu.SEPARATOR,
@@ -46,15 +40,9 @@ class Tray:
             menu=menu,
         )
 
-    # pystray のコールバックは別スレッド。UI操作は呼び出し先で after() マーシャリングする。
-    def _handle_open(self, icon=None, item=None):
-        self._on_open()
-
-    def _handle_widget(self, icon=None, item=None):
-        self._on_widget()
-
-    def _handle_widget_reset(self, icon=None, item=None):
-        self._on_widget_reset()
+    # pystray のコールバックは別スレッド。ヘッドレスなので UI マーシャリングは不要。
+    def _handle_toggle(self, icon=None, item=None):
+        self._on_toggle()
 
     def _handle_settings(self, icon=None, item=None):
         self._on_settings()
