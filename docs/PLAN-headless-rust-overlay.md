@@ -4,6 +4,24 @@
 以下は合意形成時の原文（経緯の記録として維持）。現在の実装の正とする場合は
 [`ARCHITECTURE.md`](ARCHITECTURE.md) / [`MODULES.md`](MODULES.md) を参照。
 
+## 実装結果サマリ（最終・先に読む）
+
+下記 §0〜9 は合意形成当時の検討記録であり、**一部（特に配置方式）は実装時に不採用**と
+なっている。最終的に実際に動いているのは以下:
+
+- **配置方式**: §4.1 で「主」とした SetParent 子ウィンドウ埋め込みは **Win11 で描画され
+  ず不採用**。実装は**最前面レイヤードオーバーレイ追従のみ**（当初案の「副」だった方式）。
+  仕組みの詳細は [`../overlay/README.md`](../overlay/README.md) §9「仕組み」を参照。
+- **Rust/Python の境界**: JSON ファイル（`state.json` 等）、1 ファイル 1 書き手。実際の
+  スキーマは [`../overlay/README.md`](../overlay/README.md) §6〜7 が正（§1 の図や §9 の
+  スキーマ例は初期案で、フィールド名などが実装と異なる）。
+- **設定UI**: HTML ダッシュボード（`httpconfig.py` + `settings.html`）。
+- **Tk(customtkinter)**: 全廃済み（Phase5・不可逆）。
+
+現状の実装を正とするドキュメントは [`ARCHITECTURE.md`](ARCHITECTURE.md) /
+[`MODULES.md`](MODULES.md) / [`../overlay/README.md`](../overlay/README.md)。
+以下 §0〜9 は経緯の記録として残す（原文）。
+
 ## 0. 目的と大方針
 現行の Tk(customtkinter) ベース UI を全廃し、**責任を言語で分離**する。
 
@@ -103,6 +121,9 @@ Python `taskwidget` の Rust 後継。エンジンは汎用（state.json を描�
 技術: `windows` crate のみ。**単一ポータブル exe・ランタイム DLL 無し**（trafficbar に倣う。Deskband11Lib のようなネイティブ DLL+UIAutomation 依存は避ける）。
 
 ### 4.1 配置方式の決定: 「子ウィンドウ埋め込み(SetParent)」を主、「追従オーバーレイ」を副
+※この節は検討時の原案。**実装は追従オーバーレイのみを採用（embeddingは不採用）**。
+詳細は上記サマリ／[`../overlay/README.md`](../overlay/README.md) §9 を参照。
+
 先駆者調査（§4.4）の結果、トレイ左隣（`^` オーバーフローの外）に出す用途の**主流かつ Rust 実証済み(trafficbar)は SetParent 埋め込み**。z-order 埋没・追従がほぼ自動で解決するため、当初案のオーバーレイより堅い。縦置き/未検出時のみオーバーレイ/float へフォールバック。
 
 **埋め込み手順（Win11 下辺タスクバー）**:
@@ -158,7 +179,9 @@ Python `taskwidget` の Rust 後継。エンジンは汎用（state.json を描�
 - **Phase 3 — overlay 本結線（完了）**: `OverlayBridge.start/stop/apply_enabled` で overlay.exe の spawn/stop を `config.overlay.enabled` に追従。state.json の mtime ポーリングで overlay 側が反映。
 - **Phase 4 — 設定HTML（完了 2026-11-26, commit e19bdad）**: `httpconfig.py`＋`settings.html`＋`validate.py` を新設。tray「設定」→ `webbrowser.open(ConfigServer.url)` でダッシュボードを開く。`127.0.0.1`＋起動毎トークン（無トークンは 403）。`GET /`(HTML＋token/presets 注入)／`GET /config`／`POST /config`(normalize→replace→poll_now→overlay.apply_enabled)／`GET /status`(接続状態・既知の部屋)／`GET /test`(サーバ側で URL を叩く)。`config.load_config` も同じ `validate.normalize` を通し、手編集 config.json を安全化。接続テスト/プリセット/検証を復活。検証: `tools/_smoke_phase4.py`（validate 補正＋HTTP エンドポイント）。
 - **Phase 5 — Tk 撤去（完了 2026-11-26, commit e415fd4・不可逆）**: flyout.py/widget.py/settings_ui.py/tools/preview_* を削除、theme.py は customtkinter 除去＝`resolve()` をレジストリ(`AppsUseLightTheme`)判定へ、main.py は `threading.Event` 待機のヘッドレスループへ、tray.py はメニューを表示トグル/設定/更新/終了に差替、requirements から customtkinter 除去。検証: ヘッドレス起動smoke・`test_logic` 20 PASS・`_smoke_phase4` PASS・import時 tkinter/customtkinter 非ロード確認。
-- **Phase 6 — 配布・文書（一部完了 2026-11-26, commit e9e82d2）**: `build/envmon.spec`（customtkinter 同梱除去・`settings.html` を datas に追加・tkinter/customtkinter を excludes へ）、README/BUILD.md/docs(ARCHITECTURE・MODULES) 更新は完了。**残**: `build.ps1` への cargo ビルド＋`envmon-overlay.exe` の dist 配置の自動化、`taskwidget/`(Python) の退役判断、envmon(pystray) と overlay 自前トレイの**トレイ二重化**解消（overlay 側に `TBWIDGET_NO_TRAY` 相当のトレイ無効化オプションを追加し envmon のトレイへ一元化する方針だが、`overlay/` が別セッションでライブ編集中のため着手を見送り中）。
+- **Phase 6 — 配布・文書（一部完了 2026-11-26, commit e9e82d2）**: `build/envmon.spec`（customtkinter 同梱除去・`settings.html` を datas に追加・tkinter/customtkinter を excludes へ）、README/BUILD.md/docs(ARCHITECTURE・MODULES) 更新は完了。
+  **完了済み（追記）**: `taskwidget/`(Python) は退役決定済み・作業ツリーから削除済み（旧ディレクトリは現在存在しない）。
+  **残**: (1) `build.ps1` への cargo ビルド＋`envmon-overlay.exe` の dist 配置の自動化（`build.ps1` は現在 PyInstaller のみで cargo 呼び出しを含まない）。(2) envmon(pystray) と overlay 自前トレイの**トレイ二重化**解消 — `overlay/tbwidget/src/engine.rs` の `tray_add` は無条件に呼ばれ、無効化できる CLI/環境変数（`TBWIDGET_NO_TRAY` 相当）が実装側に存在しないため未着手。
 
 ## 8. リスク・残課題（埋め込み主採用で再評価）
 - **explorer.exe 再起動で子窓破棄**（最大の実地課題）: `TaskbarCreated` 購読→再構築で対処。PoC の次に実装・検証必須。
@@ -175,6 +198,7 @@ Python `taskwidget` の Rust 後継。エンジンは汎用（state.json を描�
 ## 9. 決定事項（このセッションでの合意）
 - Tk(customtkinter) を全廃し Python をヘッドレス化する。
 - ウィジェットは Rust 製の独自タスクバー・ウィジェットエンジン（`taskwidget` の Rust 後継）。**配置は SetParent 子ウィンドウ埋め込みを主**（trafficbar/TrafficMonitor 流）、**追従オーバーレイ/float を副**（フォールバック）。
+  ※この決定は検討時点のもの。**実装は embedding を不採用とし、追従オーバーレイのみ**を採用している（上記サマリ参照）。
 - Python↔Rust の境界は JSON ファイル（state.json / commands / config.json）、1ファイル1書き手。
 - 設定UIは単一の HTML を**CodeZeno 的な親切ダッシュボード**として作る（ローカル HTTP 配信）。JSON は裏の保管庫で、ユーザーに生JSON編集を強制しない。書き手は Python のみ。
 - UX 基準は CodeZeno/Claude-Code-Usage-Monitor（トレイ左クリック=トグル / 右クリック=メニュー / ツールチップに状態・エラー / プリセット・接続テストでオンボーディング）。

@@ -6,11 +6,16 @@ from PIL import Image, ImageDraw
 from .model import Severity
 
 
-def make_icon(severity: Severity = Severity.OK, size: int = 64) -> Image.Image:
-    """状態色の丸＋温度計風アイコンを生成する."""
+def make_icon(severity: Severity = Severity.OK, size: int = 64,
+              color: str | None = None) -> Image.Image:
+    """状態色の丸＋温度計風アイコンを生成する。
+
+    ``color`` を渡すとその色を使う（設定でカスタムした状態色の反映用）。
+    省略時は ``severity.color``（既定色）。
+    """
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
-    color = severity.color
+    color = color or severity.color
 
     # 背景の角丸四角（ダークベース）
     d.rounded_rectangle([2, 2, size - 2, size - 2], radius=size // 6,

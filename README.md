@@ -144,16 +144,17 @@ run_envmon.py  ソース実行用ランチャ
 ```
 
 > 旧 Tk(customtkinter) 版の flyout / widget / settings_ui は撤去済み。表示は `overlay/`、
-> 設定は `httpconfig`＋`settings.html` が置き換えています。`taskwidget/`（Python 製の
-> タスクバー追従ライブラリ）は overlay へ役目を移したため現在アプリからは未使用です。
+> 設定は `httpconfig`＋`settings.html` が置き換えています。
 
 ## 開発者向けドキュメント
 コードを読む・手を入れる場合は `docs/` を参照してください。
 
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — 全体像・起動シーケンス・データフロー
   （`/env1.php`→poller→rules→notifier）・スレッドモデル・状態管理。
-- [`docs/MODULES.md`](docs/MODULES.md) — `envmon/`・`taskwidget/`・`tools/` の
+- [`docs/MODULES.md`](docs/MODULES.md) — `envmon/`・`tools/` の
   モジュール別リファレンス（責務・主要クラス/関数の早見表）。
+- [`docs/API.md`](docs/API.md) — ローカル設定HTTP API（エンドポイント別の入出力JSON）と
+  `tbwidget` のRust公開API（関数シグネチャ・型）のリファレンス。
 
 ## 既知の制約
 - Windows 11 は旧式の「タスクバー内埋め込みウィジェット(deskband)」API を廃止しているため、

@@ -79,6 +79,7 @@
     <button data-tab="general" class="on">全般</button>
     <button data-tab="rooms">部屋</button>
     <button data-tab="widget">ウィジェット</button>
+    <button data-tab="colors">色</button>
   </div>
 
   <!-- ===== 全般 ===== -->
@@ -181,6 +182,24 @@
       </div>
     </div>
   </div>
+
+  <!-- ===== 色 ===== -->
+  <div class="panel" id="p-colors">
+    <div class="card">
+      <div class="sec">状態色</div>
+      <div class="hint">トレイアイコンやウィジェットの文字色に使われます。好きな色へ変更できます。</div>
+      <div class="grid2">
+        <div><label class="row">正常</label><input type="color" id="color_ok"></div>
+        <div><label class="row">軽い通知</label><input type="color" id="color_warn"></div>
+        <div><label class="row">強めの通知</label><input type="color" id="color_critical"></div>
+        <div><label class="row">応答なし</label><input type="color" id="color_stale"></div>
+        <div><label class="row">照度（中立色）</label><input type="color" id="color_lux"></div>
+      </div>
+      <div class="inline" style="margin-top:10px;">
+        <button class="btn ghost" id="btnColorReset">既定の色に戻す</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="savebar">
@@ -196,6 +215,7 @@ const TOKEN = BOOT.token;
 const METRICS = {temp:["気温","℃"], humid:["湿度","%"], lux:["照度","lx"]};
 const DEFAULT_ROOM = {temp:{min:10,max:30}, humid:{min:30,max:70},
   lux_gate:{mode:"off",value:50}, channels:{toast:true,teams:true}, stale_enabled:true};
+const DEFAULT_COLORS = {ok:"#3BA55D", warn:"#E8A33D", critical:"#E24C4C", stale:"#8A8A8A", lux:"#4A90D9"};
 let cfg = {};
 let rooms = [];
 let curRoom = null;
@@ -226,6 +246,7 @@ async function load(){
   fillLabelPresets();
   fillRooms();
   fillWidget();
+  fillColors();
 }
 
 function renderBanner(st){
@@ -378,6 +399,15 @@ function btn(t,fn){ const b=document.createElement("button"); b.textContent=t; b
 function move(i,delta){ const items=cfg.widget.items; const j=i+delta; if(j<0||j>=items.length)return;
   [items[i],items[j]]=[items[j],items[i]]; renderItems(); }
 
+// ---------- 色 ----------
+function fillColors(){
+  const co = cfg.colors||{};
+  Object.keys(DEFAULT_COLORS).forEach(k=> $("color_"+k).value = co[k]||DEFAULT_COLORS[k]);
+}
+$("btnColorReset").onclick = ()=>{
+  Object.keys(DEFAULT_COLORS).forEach(k=> $("color_"+k).value = DEFAULT_COLORS[k]);
+};
+
 // ---------- 保存 ----------
 function collect(){
   saveRoomEditor();
@@ -396,6 +426,7 @@ function collect(){
   cfg.widget.enabled = $("widget_enabled").checked;
   cfg.widget.dock = $("widget_dock").value;
   cfg.widget.opacity = parseFloat($("widget_opacity").value)||0.96;
+  cfg.colors = {}; Object.keys(DEFAULT_COLORS).forEach(k=> cfg.colors[k]=$("color_"+k).value);
   return cfg;
 }
 async function save(){

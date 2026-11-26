@@ -41,12 +41,11 @@ checksum = "0e9c71c2167ca323c882b99918929403426e2373ea17242ff5653e0d5e1058be"
 
 [[package]]
 name = "envmon-overlay"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
- "serde",
  "serde_json",
  "sysinfo",
- "windows 0.58.0",
+ "tbwidget",
 ]
 
 [[package]]
@@ -191,6 +190,15 @@ dependencies = [
  "ntapi",
  "rayon",
  "windows 0.57.0",
+]
+
+[[package]]
+name = "tbwidget"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "windows 0.58.0",
 ]
 
 [[package]]

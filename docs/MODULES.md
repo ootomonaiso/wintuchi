@@ -38,7 +38,8 @@
 `POST /config`（`validate.normalize` で正規化し `Config.replace`→`poll_now`→
 `overlay.apply_enabled`）/ `GET /status`（接続状態・既知の部屋一覧）/ `GET /test`
 （サーバ側で URL を叩く）。全エンドポイントはクエリの `t=<token>` を
-`secrets.compare_digest` で検証し、無ければ 403。
+`secrets.compare_digest` で検証し、無ければ 403。各エンドポイントの
+リクエスト/レスポンスJSONの詳細は [`API.md`](API.md) §1。
 
 ### 設定・データモデル
 
@@ -96,8 +97,9 @@
 
 Python 本体とは別にビルド・起動される独立バイナリ群。Cargo workspace で
 汎用エンジン `tbwidget` と薄いバイナリ `envmon-overlay` に分かれています。
-API・設定スキーマ・ビルド手順の詳細は [`../overlay/README.md`](../overlay/README.md)
-を参照してください（本ドキュメントでは Python との境界のみ扱います）。
+設定スキーマ・ビルド手順の詳細は [`../overlay/README.md`](../overlay/README.md)、
+`tbwidget` の公開関数・型（`AppInfo`/`Cfg`/`Widget`等）のシグネチャは
+[`API.md`](API.md) §2 を参照してください（本ドキュメントでは Python との境界のみ扱います）。
 
 | クレート | 責務 |
 |---|---|

@@ -7,19 +7,21 @@ from typing import Callable
 import pystray
 from pystray import Menu, MenuItem
 
-from . import icons
+from . import icons, theme
+from .config import Config
 from .model import AppState, Severity
 
 log = logging.getLogger(__name__)
 
 
 class Tray:
-    def __init__(self, state: AppState,
+    def __init__(self, state: AppState, config: Config,
                  on_toggle: Callable[[], None],
                  on_settings: Callable[[], None],
                  on_refresh: Callable[[], None],
                  on_quit: Callable[[], None]):
         self.state = state
+        self.config = config
         self._on_toggle = on_toggle
         self._on_settings = on_settings
         self._on_refresh = on_refresh
@@ -35,7 +37,7 @@ class Tray:
         )
         self.icon = pystray.Icon(
             "EnvMonitor",
-            icon=icons.make_icon(Severity.OK),
+            icon=icons.make_icon(Severity.OK, color=theme.color_for(Severity.OK, self.config.snapshot())),
             title="環境モニタ",
             menu=menu,
         )
@@ -68,7 +70,8 @@ class Tray:
         if sev != self._severity:
             self._severity = sev
             try:
-                self.icon.icon = icons.make_icon(sev)
+                color = theme.color_for(sev, self.config.snapshot())
+                self.icon.icon = icons.make_icon(sev, color=color)
             except Exception as e:
                 log.debug("アイコン更新失敗: %s", e)
         # ツールチップに概況

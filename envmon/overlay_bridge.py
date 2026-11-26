@@ -16,12 +16,11 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
+from . import theme
 from .config import Config, _exe_dir, app_data_dir
+from .model import Severity
 
 log = logging.getLogger(__name__)
-
-# しきい値配色（flyout のゲージ色に準拠）。色の決定は Python の責任。
-GREEN, ORANGE, RED, GRAY, LUX = "#3BA55D", "#E8A33D", "#E24C4C", "#8A8A8A", "#4A90D9"
 
 # metric -> (単位, Reading属性, 小数桁)
 METRICS = {
@@ -35,20 +34,20 @@ def state_path() -> Path:
     return app_data_dir() / "overlay.state.json"
 
 
-def _color(metric: str, value: Optional[float], room_cfg: dict) -> str:
+def _color(metric: str, value: Optional[float], room_cfg: dict, snap: dict) -> str:
     if value is None:
-        return GRAY
+        return theme.color_for(Severity.STALE, snap)
     if metric == "lux":
-        return LUX  # 照度は閾値判定せず中立色
+        return theme.lux_color(snap)  # 照度は閾値判定せず中立色
     b = room_cfg.get(metric, {}) or {}
     lo, hi = b.get("min"), b.get("max")
     if (lo is not None and value < lo) or (hi is not None and value > hi):
-        return RED
+        return theme.color_for(Severity.CRITICAL, snap)
     if lo is not None and hi is not None and hi > lo:
         span = hi - lo
         if (value - lo) <= 0.1 * span or (hi - value) <= 0.1 * span:
-            return ORANGE
-    return GREEN
+            return theme.color_for(Severity.WARN, snap)
+    return theme.color_for(Severity.OK, snap)
 
 
 def build_chips(state, config: Config) -> list[dict[str, Any]]:
@@ -69,22 +68,34 @@ def build_chips(state, config: Config) -> list[dict[str, Any]]:
         value = getattr(rs.latest, attr, None) if (rs and rs.latest) else None
         rc = config.room_config(room) if room else {}
         text = "--" if value is None else f"{value:.{dec}f}{unit}"
-        chips.append({"label": room, "value": text, "fg": _color(metric, value, rc)})
+        chips.append({"label": room, "value": text, "fg": _color(metric, value, rc, snap)})
     return chips
+
+
+# 直近に書いた JSON 文字列。内容が変わらない周期は書き込みを省く（ディスク書換の抑制）。
+_last_state_json: Optional[str] = None
 
 
 def write_state(state, config: Config, visible: bool = True) -> None:
     """overlay 用の state.json を原子的に書き出す（単一書き手）。
 
     ``visible`` が False なら overlay はウィンドウを隠す（プロセスは常駐のまま）。
+
+    内容が前回と同一でファイルも存在する周期は **書き込みをスキップ**する（dedup）。
+    環境値は毎周期変わるわけではないので、これだけで書き込み回数が大きく減る。
     """
+    global _last_state_json
     try:
         data = {"visible": bool(visible), "chips": build_chips(state, config)}
+        payload = json.dumps(data, ensure_ascii=False)
         p = state_path()
+        if payload == _last_state_json and p.exists():
+            return  # 変化なし＝書かない
         tmp = p.with_suffix(p.suffix + f".{os.getpid()}.tmp")
         with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False)
+            f.write(payload)
         os.replace(tmp, p)
+        _last_state_json = payload
     except Exception:
         log.exception("overlay state の書き出しに失敗")
 

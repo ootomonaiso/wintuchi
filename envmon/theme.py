@@ -6,7 +6,11 @@
 """
 from __future__ import annotations
 
+import re
+
 from .model import Severity
+
+_HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 # ===================== 配色（(light, dark)） =====================
 WINDOW = ("#f3f4f6", "#16181d")        # ウィンドウ地
@@ -89,3 +93,28 @@ def label_for(sev: Severity, cfg: dict | None) -> str:
         if isinstance(v, str) and v.strip():
             return v
     return sev.label
+
+
+def is_hex_color(v) -> bool:
+    """``#RGB`` / ``#RRGGBB`` 形式かを判定する。"""
+    return isinstance(v, str) and bool(_HEX_RE.match(v.strip()))
+
+
+def color_for(sev: Severity, cfg: dict | None) -> str:
+    """設定の colors を優先して状態色（単色）を返す（未設定/不正は既定）。"""
+    colors = (cfg or {}).get("colors") if cfg else None
+    if isinstance(colors, dict):
+        v = colors.get(sev.key)
+        if is_hex_color(v):
+            return v
+    return sev.color
+
+
+def lux_color(cfg: dict | None) -> str:
+    """設定の colors.lux を優先して照度バーの中立色を返す（未設定/不正は既定）。"""
+    colors = (cfg or {}).get("colors") if cfg else None
+    if isinstance(colors, dict):
+        v = colors.get("lux")
+        if is_hex_color(v):
+            return v
+    return LUX

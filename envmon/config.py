@@ -87,6 +87,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "run_at_startup": False,
     # 状態の呼び方（UI表示・Teams通知に反映。好きな言葉へ変更可）
     "labels": {"ok": "正常", "warn": "注意", "critical": "要確認", "stale": "応答なし"},
+    # 状態色（トレイアイコン・ウィジェットの文字色に反映。#RGB/#RRGGBB で指定）
+    "colors": {"ok": "#3BA55D", "warn": "#E8A33D", "critical": "#E24C4C",
+               "stale": "#8A8A8A", "lux": "#4A90D9"},
     # 閾値付近のバタつき防止に使うヒステリシス幅（各指標の実単位）
     "hysteresis": {"temp": 0.5, "humid": 2.0},
     # センサID(文字列) -> 部屋名

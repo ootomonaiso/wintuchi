@@ -3,7 +3,8 @@
 このドキュメントは **EnvMonitor のコードを読み始める開発者** 向けに、全体像・データフロー・
 スレッドモデル・状態管理をまとめたものです。インストールや使い方は
 [`README.md`](../README.md)、ビルド・配布は [`BUILD.md`](../BUILD.md) を参照してください。
-モジュール単位の責務・主要シンボルは [`MODULES.md`](MODULES.md) にあります。
+モジュール単位の責務・主要シンボルは [`MODULES.md`](MODULES.md)、設定HTTPとtbwidgetの
+関数レベルの入出力は [`API.md`](API.md) にあります。
 
 ---
 
@@ -187,6 +188,8 @@ GUI ツールキットが無いため、**マーシャリングの鉄則その�
   `Config.replace()`→`poll_now()`→`overlay.apply_enabled()`。UI 門番が消えるぶん、
   **不正 JSON の防波堤を `validate.py` に集約**（手編集 `config.json` も `load_config` 時に
   同じ normalize を通す）。
+- 全エンドポイント（`/`・`/config`・`/status`・`/test`）のリクエスト/レスポンスJSONの
+  正確な形は [`API.md`](API.md) §1 を参照。
 
 ---
 

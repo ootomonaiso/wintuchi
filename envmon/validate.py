@@ -21,6 +21,7 @@ from typing import Any
 
 from . import presets
 from .config import DEFAULT_CONFIG, DEFAULT_ROOM, _deep_merge
+from .theme import is_hex_color
 
 _TIME_FALLBACK = {"start": "22:00", "end": "07:00"}
 _GATE_MODES = ("off", "above", "below")
@@ -140,6 +141,19 @@ def normalize(data: Any) -> tuple[dict, list[str]]:
     labels = c.get("labels") if isinstance(c.get("labels"), dict) else {}
     c["labels"] = {k: (_as_str(labels.get(k)).strip() or presets.DEFAULT_LABELS[k])
                    for k in ("ok", "warn", "critical", "stale")}
+
+    colors_in = c.get("colors") if isinstance(c.get("colors"), dict) else {}
+    colors_out = {}
+    for k in ("ok", "warn", "critical", "stale", "lux"):
+        v = colors_in.get(k)
+        default = DEFAULT_CONFIG["colors"][k]
+        if is_hex_color(v):
+            colors_out[k] = v.strip()
+        else:
+            if v is not None:
+                warnings.append(f"状態色「{k}」が不正な値({v})のため既定に戻しました")
+            colors_out[k] = default
+    c["colors"] = colors_out
 
     hy = c.get("hysteresis") if isinstance(c.get("hysteresis"), dict) else {}
     c["hysteresis"] = {

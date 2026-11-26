@@ -51,7 +51,7 @@ class App:
         self.overlay = OverlayBridge(self.config)
         # 設定用ローカル HTTP（Tk 設定画面の後継。tray「設定」からブラウザで開く）
         self.httpserver = ConfigServer(self.config, self.state, self._apply_web_config)
-        self.tray = Tray(self.state,
+        self.tray = Tray(self.state, self.config,
                          on_toggle=self._toggle_overlay,
                          on_settings=self._open_web_settings,
                          on_refresh=self.poller.poll_now,
