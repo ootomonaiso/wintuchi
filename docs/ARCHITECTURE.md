@@ -42,10 +42,14 @@ run_envmon.py
             │    ├─ ctk.CTk() → withdraw()  # 非表示 root（トレイ常駐）
             │    ├─ Flyout / DesktopWidget / SettingsWindow
             │    ├─ Poller(on_update=_on_poll_update)
-            │    └─ Tray(on_open=…, on_settings=…, on_refresh=…, on_quit=…, …)
+            │    ├─ OverlayBridge(config)        # Rust オーバーレイの spawn/stop
+            │    ├─ ConfigServer(…, _apply_web_config)  # 設定用ローカル HTTP
+            │    └─ Tray(on_settings=_req_open_web_settings, …)
             └─ run()
                  ├─ startup.set_startup(True)   # run_at_startup が真なら HKCU\…\Run へ
                  ├─ poller.start()               # ワーカスレッド開始
+                 ├─ overlay.start()              # overlay.exe を spawn（あれば）
+                 ├─ httpserver.start()           # 設定 HTTP を別スレッドで開始
                  ├─ widget.apply_enabled()       # 設定に応じてウィジェット表示
                  ├─ tray.run_detached()          # pystray を別スレッドで開始
                  └─ root.mainloop()              # Tk メインループ（終了まで）
@@ -142,10 +146,37 @@ flowchart LR
 | **Tk メインスレッド** | すべての GUI 操作・`root.mainloop()` | `App.run()` |
 | **poller スレッド** | 周期取得・判定・通知（daemon） | `Poller.start()`（`poller.py:107`） |
 | **tray スレッド** | pystray のイベントループ | `Tray.run_detached()`（`tray.py:68`） |
+| **httpconfig スレッド** | 設定ダッシュボードの HTTP（daemon） | `ConfigServer.start()`（`httpconfig.py`） |
 
-**鉄則：GUI 操作は必ず Tk メインスレッドで行う。** poller / tray スレッドから UI を
-いじるときは、`App` の薄いラッパ経由で `root.after(0, ...)` によりメインスレッドへ
-マーシャリングします（`envmon/main.py:73-110`）。
+**鉄則：GUI 操作は必ず Tk メインスレッドで行う。** poller / tray / httpconfig スレッドから
+UI をいじるときは、`App` の薄いラッパ経由で `root.after(0, ...)` によりメインスレッドへ
+マーシャリングします（`_apply_web_config` も Tk 更新だけ `root.after` でメインへ渡す）。
+
+---
+
+## UI 刷新：オーバーレイ連携と設定ダッシュボード（移行中）
+
+Tk（customtkinter）UI を段階的にヘッドレス化し、**表示は Rust 製タスクバーオーバーレイ**、
+**設定はブラウザで開く HTML ダッシュボード**へ移す移行の途中段階です（詳細・進捗は
+[`PLAN-headless-rust-overlay.md`](PLAN-headless-rust-overlay.md)）。現段階では Tk の
+`Flyout` / `DesktopWidget` / `SettingsWindow` も**並走**しており、tray「設定」だけが
+HTML ダッシュボードを開きます。
+
+**責務分離（言語の壁 = JSON ファイル。1 ファイル 1 書き手でレース回避）：**
+
+- **Python（内容決定）**：poll→判定→色/ラベル解決し、`overlay.state.json` に
+  「色解決済みチップ」を書く（`overlay_bridge.write_state`）。overlay は内容を解釈しない。
+- **Rust overlay（描画）**：`state.json` を読んでタスクバー左に追従描画するだけ。
+  spawn/stop は `OverlayBridge` が担い、`config.overlay.enabled` で起動/停止を追従。
+
+**設定ダッシュボード（`httpconfig.py` + `settings.html`）：**
+
+- tray「設定」→ `webbrowser.open(ConfigServer.url)`。`127.0.0.1` バインド＋起動毎の
+  ランダムトークンで保護（トークン無しは 403）。
+- 保存は `POST /config` → `validate.normalize()` で**型/範囲フォールバック**してから
+  `Config.replace()`→`poll_now()`→`overlay.apply_enabled()`。UI 門番が消えるぶん、
+  **不正 JSON の防波堤を `validate.py` に集約**（手編集 `config.json` も `load_config` 時に
+  同じ normalize を通す）。
 
 - tray スレッド → `App._req_toggle_flyout` / `_req_open_settings` / `_req_toggle_widget` /
   `_req_reset_widget` / `_req_quit` が `root.after(0, …)` で実体を呼ぶ。

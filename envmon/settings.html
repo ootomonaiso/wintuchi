@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>環境モニタ — 設定</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --card2:#f8f9fb; --inset:#eef0f3;
+    --border:#dfe3e8; --text:#1f2430; --muted:#6b7280; --faint:#9aa1ac;
+    --accent:#3a7afe; --accent-h:#2f68e0;
+    --ok:#3BA55D; --warn:#E8A33D; --crit:#E24C4C; --stale:#8A8A8A;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#1b1e24; --card:#23272f; --card2:#1f232a; --inset:#2a2f38;
+      --border:#343a44; --text:#e7eaf0; --muted:#9aa1ac; --faint:#6b7280;
+      --accent:#5b8dff; --accent-h:#4c7ef0;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+    font:14px/1.5 "Segoe UI","Yu Gothic UI",system-ui,sans-serif;}
+  .wrap{max-width:760px;margin:0 auto;padding:18px 16px 60px;}
+  h1{font-size:19px;margin:4px 0 2px;}
+  .sub{color:var(--muted);font-size:12px;margin-bottom:14px;}
+  .banner{display:flex;align-items:center;gap:9px;padding:10px 13px;border-radius:10px;
+    border:1px solid var(--border);margin-bottom:14px;font-size:13px;}
+  .dot{width:10px;height:10px;border-radius:50%;flex:0 0 auto;}
+  .tabs{display:flex;gap:4px;margin-bottom:12px;}
+  .tabs button{flex:1;padding:9px;border:1px solid var(--border);background:var(--card2);
+    color:var(--muted);border-radius:9px;cursor:pointer;font-size:13px;}
+  .tabs button.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .panel{display:none;}
+  .panel.on{display:block;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;
+    padding:14px 15px;margin-bottom:12px;}
+  .sec{font-weight:600;font-size:13px;margin:2px 0 8px;display:flex;align-items:center;gap:7px;}
+  .sec::before{content:"";width:3px;height:14px;background:var(--accent);border-radius:2px;}
+  label.row{display:block;margin:9px 0 2px;font-size:13px;}
+  .hint{color:var(--faint);font-size:11.5px;margin:1px 0 4px;}
+  input[type=text],input[type=number],input[type=time],select{
+    background:var(--inset);color:var(--text);border:1px solid var(--border);
+    border-radius:8px;padding:7px 9px;font-size:13px;width:100%;max-width:360px;}
+  input.short{max-width:120px;}
+  .inline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .sw{display:flex;align-items:center;gap:8px;margin:7px 0;cursor:pointer;}
+  .sw input{width:auto;}
+  button.btn{background:var(--accent);color:#fff;border:none;border-radius:8px;
+    padding:8px 14px;font-size:13px;cursor:pointer;}
+  button.btn:hover{background:var(--accent-h);}
+  button.ghost{background:transparent;color:var(--accent);border:1px solid var(--border);}
+  .pill{display:inline-flex;align-items:center;gap:6px;background:var(--card2);
+    border:1px solid var(--border);border-radius:8px;padding:6px 8px;margin:3px 0;}
+  .pill .nm{flex:1;}
+  .pill button{background:transparent;border:none;color:var(--muted);cursor:pointer;
+    font-size:14px;padding:2px 5px;border-radius:5px;}
+  .pill button:hover{background:var(--inset);}
+  .muted{color:var(--muted);font-size:12px;}
+  .savebar{position:fixed;left:0;right:0;bottom:0;background:var(--card);
+    border-top:1px solid var(--border);padding:10px 16px;display:flex;
+    align-items:center;gap:12px;justify-content:flex-end;}
+  .savebar .msg{flex:1;font-size:12.5px;color:var(--muted);}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:4px 18px;}
+  @media(max-width:520px){.grid2{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>環境モニタ — 設定</h1>
+  <div class="sub">変更は「保存」を押すと反映されます。生の JSON を触る必要はありません。</div>
+
+  <div class="banner" id="banner">
+    <span class="dot" id="bdot" style="background:var(--stale)"></span>
+    <span id="btext">読み込み中…</span>
+  </div>
+
+  <div class="tabs">
+    <button data-tab="general" class="on">全般</button>
+    <button data-tab="rooms">部屋</button>
+    <button data-tab="widget">ウィジェット</button>
+  </div>
+
+  <!-- ===== 全般 ===== -->
+  <div class="panel on" id="p-general">
+    <div class="card">
+      <div class="sec">接続</div>
+      <label class="row">環境モニタの URL</label>
+      <div class="hint">例: http://192.168.1.10/env1.php</div>
+      <input type="text" id="url">
+      <div class="inline" style="margin-top:7px;">
+        <button class="btn ghost" id="btnTest">接続テスト</button>
+        <span class="muted" id="testResult">URL を入れて確認できます</span>
+      </div>
+      <label class="row">取得間隔（秒）</label>
+      <div class="hint">何秒ごとに値を取りに行くか</div>
+      <input type="number" class="short" id="poll_interval_sec" min="1">
+      <label class="row">通信タイムアウト（秒）</label>
+      <input type="number" class="short" id="request_timeout_sec" min="1">
+    </div>
+
+    <div class="card">
+      <div class="sec">通知</div>
+      <label class="row">Teams 通知用 URL（Power Automate）</label>
+      <div class="hint">空欄なら Teams へは送りません</div>
+      <input type="text" id="teams_webhook_url">
+      <label class="row">同じ通知を再送しない時間（分）</label>
+      <input type="number" class="short" id="cooldown_minutes" min="0">
+      <label class="row">無応答を「応答なし」とみなす時間（分）</label>
+      <input type="number" class="short" id="stale_minutes" min="1">
+      <label class="row">通知しない時間帯（静音）</label>
+      <div class="hint">夜間など、ここで指定した時間帯はトースト/Teams を出しません</div>
+      <div class="inline">
+        <label class="sw"><input type="checkbox" id="quiet_enabled"> 使う</label>
+        <input type="time" class="short" id="quiet_start">
+        <span>〜</span>
+        <input type="time" class="short" id="quiet_end">
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec">状態の呼び方</div>
+      <div class="hint">「異常」のような強い言葉がしっくりこないときは好きな言葉へ。画面と Teams 通知に出ます。</div>
+      <div class="inline" style="margin-bottom:6px;">
+        <span class="muted">プリセット</span>
+        <select id="labelPreset" style="max-width:180px;"></select>
+      </div>
+      <div class="grid2">
+        <div><label class="row">正常のとき</label><input type="text" id="label_ok"></div>
+        <div><label class="row">軽い通知</label><input type="text" id="label_warn"></div>
+        <div><label class="row">強めの通知</label><input type="text" id="label_critical"></div>
+        <div><label class="row">応答なし</label><input type="text" id="label_stale"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="sec">起動 / 表示</div>
+      <label class="sw"><input type="checkbox" id="run_at_startup"> Windows にログインしたら自動で起動する</label>
+      <label class="sw"><input type="checkbox" id="overlay_enabled"> タスクバーのオーバーレイ表示を使う</label>
+      <div class="hint">センサID→部屋名の対応は sensors.json（自分で用意するファイル）で編集します。アプリは書き換えません。</div>
+    </div>
+  </div>
+
+  <!-- ===== 部屋 ===== -->
+  <div class="panel" id="p-rooms">
+    <div class="card">
+      <div class="inline" style="margin-bottom:4px;">
+        <span class="sec" style="margin:0;">部屋を選ぶ</span>
+        <select id="roomSel" style="max-width:260px;"></select>
+      </div>
+      <div id="roomEditor"></div>
+    </div>
+  </div>
+
+  <!-- ===== ウィジェット ===== -->
+  <div class="panel" id="p-widget">
+    <div class="card">
+      <div class="sec">タスクバー表示</div>
+      <label class="sw"><input type="checkbox" id="widget_enabled"> ウィジェットを表示する</label>
+      <label class="row">置き場所</label>
+      <select id="widget_dock" style="max-width:260px;">
+        <option value="taskbar">タスクバーの上に出す（追従）</option>
+        <option value="float">好きな位置に置く</option>
+      </select>
+      <label class="row">不透明度</label>
+      <div class="inline"><input type="range" id="widget_opacity" min="0.1" max="1" step="0.02" style="max-width:220px;">
+        <span class="muted" id="opacityVal"></span></div>
+    </div>
+    <div class="card">
+      <div class="sec">表示する項目</div>
+      <div class="hint">上から順に表示されます。</div>
+      <div id="itemList"></div>
+      <div class="inline" style="margin-top:8px;">
+        <select id="addRoom" style="max-width:170px;"></select>
+        <select id="addMetric" style="max-width:110px;">
+          <option value="temp">気温</option>
+          <option value="humid">湿度</option>
+          <option value="lux">照度</option>
+        </select>
+        <button class="btn ghost" id="btnAddItem">＋ 追加</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="savebar">
+  <span class="msg" id="saveMsg"></span>
+  <button class="btn ghost" id="btnReload">再読込</button>
+  <button class="btn" id="btnSave">保存</button>
+</div>
+
+<script>
+/*__BOOTSTRAP__*/
+const BOOT = window.__BOOT__ || {token:"", roomPresets:[], labelPresets:{}};
+const TOKEN = BOOT.token;
+const METRICS = {temp:["気温","℃"], humid:["湿度","%"], lux:["照度","lx"]};
+const DEFAULT_ROOM = {temp:{min:10,max:30}, humid:{min:30,max:70},
+  lux_gate:{mode:"off",value:50}, channels:{toast:true,teams:true}, stale_enabled:true};
+let cfg = {};
+let rooms = [];
+let curRoom = null;
+
+const $ = id => document.getElementById(id);
+function api(path, opts){
+  const sep = path.includes("?") ? "&" : "?";
+  return fetch(path + sep + "t=" + encodeURIComponent(TOKEN), opts);
+}
+
+// ---------- タブ ----------
+document.querySelectorAll(".tabs button").forEach(b=>{
+  b.onclick = ()=>{
+    document.querySelectorAll(".tabs button").forEach(x=>x.classList.remove("on"));
+    document.querySelectorAll(".panel").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on");
+    $("p-"+b.dataset.tab).classList.add("on");
+  };
+});
+
+// ---------- 読み込み ----------
+async function load(){
+  cfg = await (await api("/config")).json();
+  const st = await (await api("/status")).json();
+  rooms = st.rooms || [];
+  renderBanner(st);
+  fillGeneral();
+  fillLabelPresets();
+  fillRooms();
+  fillWidget();
+}
+
+function renderBanner(st){
+  let color = "var(--stale)", msg = "まだデータを取得していません（URL を確認してください）";
+  if(st.error){ color="var(--crit)"; msg="つながっていません（"+st.error.slice(0,40)+"）"; }
+  else if(st.last_ok){ color="var(--ok)"; msg="接続中 — 最終取得 "+st.last_ok+" ／ "+rooms.length+" 部屋"; }
+  $("bdot").style.background = color;
+  $("btext").textContent = msg;
+}
+
+// ---------- 全般 ----------
+function fillGeneral(){
+  $("url").value = cfg.url||"";
+  $("poll_interval_sec").value = cfg.poll_interval_sec??30;
+  $("request_timeout_sec").value = cfg.request_timeout_sec??10;
+  $("teams_webhook_url").value = cfg.teams_webhook_url||"";
+  $("cooldown_minutes").value = cfg.cooldown_minutes??15;
+  $("stale_minutes").value = cfg.stale_minutes??10;
+  const qh = cfg.quiet_hours||{};
+  $("quiet_enabled").checked = !!qh.enabled;
+  $("quiet_start").value = qh.start||"22:00";
+  $("quiet_end").value = qh.end||"07:00";
+  const lb = cfg.labels||{};
+  ["ok","warn","critical","stale"].forEach(k=> $("label_"+k).value = lb[k]||"");
+  $("run_at_startup").checked = !!cfg.run_at_startup;
+  $("overlay_enabled").checked = !!(cfg.overlay && cfg.overlay.enabled);
+}
+
+function fillLabelPresets(){
+  const sel = $("labelPreset");
+  sel.innerHTML = '<option value="">プリセットから選ぶ…</option>';
+  Object.keys(BOOT.labelPresets||{}).forEach(n=>{
+    const o=document.createElement("option"); o.value=n; o.textContent=n; sel.appendChild(o);
+  });
+  sel.onchange = ()=>{
+    const p = (BOOT.labelPresets||{})[sel.value];
+    if(p) ["ok","warn","critical","stale"].forEach(k=> $("label_"+k).value=p[k]);
+  };
+}
+
+// ---------- 部屋 ----------
+function roomCfg(name){
+  if(!cfg.rooms) cfg.rooms = {};
+  if(!cfg.rooms[name]) cfg.rooms[name] = JSON.parse(JSON.stringify(DEFAULT_ROOM));
+  return cfg.rooms[name];
+}
+function fillRooms(){
+  const sel = $("roomSel");
+  sel.innerHTML = "";
+  if(!rooms.length){
+    $("roomEditor").innerHTML = '<div class="muted">まだ部屋がありません。sensors.json にセンサID→部屋名を書くと、ここに部屋が並びます。</div>';
+    return;
+  }
+  rooms.forEach(r=>{ const o=document.createElement("option"); o.value=r; o.textContent=r; sel.appendChild(o); });
+  curRoom = rooms[0];
+  sel.value = curRoom;
+  sel.onchange = ()=>{ saveRoomEditor(); curRoom=sel.value; renderRoomEditor(); };
+  renderRoomEditor();
+}
+function renderRoomEditor(){
+  const rc = roomCfg(curRoom);
+  const presetOpts = (BOOT.roomPresets||[]).map(p=>`<option value="${p.name}">${p.name}</option>`).join("");
+  const mm = (key,lab)=>`
+    <label class="row">${lab}</label>
+    <div class="inline">
+      <span class="muted">下限</span><input type="number" class="short" id="rc_${key}_min" value="${num(rc[key]?.min)}">
+      <span class="muted">上限</span><input type="number" class="short" id="rc_${key}_max" value="${num(rc[key]?.max)}">
+    </div>`;
+  const g = rc.lux_gate||{mode:"off",value:50};
+  $("roomEditor").innerHTML = `
+    <div class="inline" style="margin:4px 0 8px;">
+      <span class="muted">プリセット</span>
+      <select id="roomPreset" style="max-width:260px;"><option value="">選ぶ…</option>${presetOpts}</select>
+    </div>
+    <div class="hint" id="roomPresetHint"></div>
+    ${mm("temp","気温（℃）")}
+    ${mm("humid","湿度（%）")}
+    <div class="hint">空欄にした項目はチェックしません（通知しません）。</div>
+    <label class="row">明るさ（照度）による通知の制御</label>
+    <select id="rc_gate_mode" style="max-width:320px;">
+      <option value="off">いつでも通知する</option>
+      <option value="above">明るいときだけ通知（照度が指定以上）</option>
+      <option value="below">暗いときだけ通知（照度が指定以下）</option>
+    </select>
+    <div class="inline" style="margin-top:6px;"><span class="muted">境目の明るさ</span>
+      <input type="number" class="short" id="rc_gate_value" value="${g.value??50}"><span class="muted">lux</span></div>
+    <label class="row">この部屋の通知先</label>
+    <label class="sw"><input type="checkbox" id="rc_toast"> Windows の通知（トースト）</label>
+    <label class="sw"><input type="checkbox" id="rc_teams"> Teams の通知</label>
+    <label class="sw"><input type="checkbox" id="rc_stale"> センサの応答なしを知らせる</label>
+  `;
+  $("rc_gate_mode").value = g.mode||"off";
+  $("rc_toast").checked = rc.channels?.toast!==false;
+  $("rc_teams").checked = rc.channels?.teams!==false;
+  $("rc_stale").checked = rc.stale_enabled!==false;
+  $("roomPreset").onchange = e=>{
+    const p = (BOOT.roomPresets||[]).find(x=>x.name===e.target.value);
+    if(!p) return;
+    $("rc_temp_min").value = num(p.temp?.[0]); $("rc_temp_max").value = num(p.temp?.[1]);
+    $("rc_humid_min").value = num(p.humid?.[0]); $("rc_humid_max").value = num(p.humid?.[1]);
+    $("roomPresetHint").textContent = p.hint||"";
+  };
+}
+function saveRoomEditor(){
+  if(!curRoom || !$("rc_temp_min")) return;
+  const rc = roomCfg(curRoom);
+  rc.temp = {min:pnum($("rc_temp_min").value), max:pnum($("rc_temp_max").value)};
+  rc.humid = {min:pnum($("rc_humid_min").value), max:pnum($("rc_humid_max").value)};
+  rc.lux_gate = {mode:$("rc_gate_mode").value, value:pnum($("rc_gate_value").value)??50};
+  rc.channels = {toast:$("rc_toast").checked, teams:$("rc_teams").checked};
+  rc.stale_enabled = $("rc_stale").checked;
+}
+function num(v){ return (v===null||v===undefined||v==="") ? "" : v; }
+function pnum(v){ v=(v||"").toString().trim(); if(v==="") return null; const n=parseFloat(v); return isNaN(n)?null:n; }
+
+// ---------- ウィジェット ----------
+function fillWidget(){
+  const w = cfg.widget||{};
+  $("widget_enabled").checked = !!w.enabled;
+  $("widget_dock").value = w.dock||"taskbar";
+  $("widget_opacity").value = w.opacity??0.96;
+  $("opacityVal").textContent = Math.round((w.opacity??0.96)*100)+"%";
+  $("widget_opacity").oninput = ()=> $("opacityVal").textContent = Math.round($("widget_opacity").value*100)+"%";
+  const ar = $("addRoom"); ar.innerHTML="";
+  rooms.forEach(r=>{ const o=document.createElement("option"); o.value=r; o.textContent=r; ar.appendChild(o); });
+  renderItems();
+  $("btnAddItem").onclick = ()=>{
+    const room=$("addRoom").value, metric=$("addMetric").value;
+    if(!room) return;
+    if(!cfg.widget) cfg.widget={};
+    if(!cfg.widget.items) cfg.widget.items=[];
+    if(cfg.widget.items.some(i=>i.room===room&&i.metric===metric)) return;
+    cfg.widget.items.push({room, metric});
+    renderItems();
+  };
+}
+function renderItems(){
+  const box=$("itemList"); box.innerHTML="";
+  const items=(cfg.widget&&cfg.widget.items)||[];
+  if(!items.length){ box.innerHTML='<div class="muted">（まだありません。下から追加してください）</div>'; return; }
+  items.forEach((it,idx)=>{
+    const d=document.createElement("div"); d.className="pill";
+    const lbl=METRICS[it.metric]?METRICS[it.metric][0]:it.metric;
+    d.innerHTML=`<span class="nm">${it.room}　${lbl}</span>`;
+    const up=btn("↑",()=>move(idx,-1)), dn=btn("↓",()=>move(idx,1)), rm=btn("✕",()=>{items.splice(idx,1);renderItems();});
+    d.append(up,dn,rm); box.appendChild(d);
+  });
+}
+function btn(t,fn){ const b=document.createElement("button"); b.textContent=t; b.onclick=fn; return b; }
+function move(i,delta){ const items=cfg.widget.items; const j=i+delta; if(j<0||j>=items.length)return;
+  [items[i],items[j]]=[items[j],items[i]]; renderItems(); }
+
+// ---------- 保存 ----------
+function collect(){
+  saveRoomEditor();
+  cfg.url = $("url").value.trim();
+  cfg.poll_interval_sec = parseInt($("poll_interval_sec").value)||30;
+  cfg.request_timeout_sec = parseInt($("request_timeout_sec").value)||10;
+  cfg.teams_webhook_url = $("teams_webhook_url").value.trim();
+  cfg.cooldown_minutes = parseInt($("cooldown_minutes").value)||0;
+  cfg.stale_minutes = parseInt($("stale_minutes").value)||10;
+  cfg.quiet_hours = {enabled:$("quiet_enabled").checked, start:$("quiet_start").value||"22:00", end:$("quiet_end").value||"07:00"};
+  cfg.labels = {}; ["ok","warn","critical","stale"].forEach(k=> cfg.labels[k]=$("label_"+k).value.trim());
+  cfg.run_at_startup = $("run_at_startup").checked;
+  if(!cfg.overlay) cfg.overlay={exe:""};
+  cfg.overlay.enabled = $("overlay_enabled").checked;
+  if(!cfg.widget) cfg.widget={};
+  cfg.widget.enabled = $("widget_enabled").checked;
+  cfg.widget.dock = $("widget_dock").value;
+  cfg.widget.opacity = parseFloat($("widget_opacity").value)||0.96;
+  return cfg;
+}
+async function save(){
+  const body = JSON.stringify(collect());
+  $("saveMsg").textContent = "保存中…";
+  try{
+    const r = await api("/config", {method:"POST", headers:{"Content-Type":"application/json"}, body});
+    const j = await r.json();
+    if(j.ok){
+      $("saveMsg").textContent = j.warnings&&j.warnings.length
+        ? "保存しました（補正 "+j.warnings.length+" 件: "+j.warnings.join(" / ")+"）"
+        : "保存しました ✓";
+      load();
+    } else { $("saveMsg").textContent = "保存に失敗: "+(j.error||"不明"); }
+  }catch(e){ $("saveMsg").textContent = "保存に失敗: "+e; }
+}
+
+// ---------- 接続テスト ----------
+$("btnTest").onclick = async ()=>{
+  const url=$("url").value.trim(), to=$("request_timeout_sec").value||5;
+  if(!url){ $("testResult").textContent="URL を入力してください"; return; }
+  $("testResult").textContent="接続中…";
+  try{
+    const j = await (await api("/test?url="+encodeURIComponent(url)+"&timeout="+to)).json();
+    $("testResult").textContent = (j.ok?"✓ ":"✕ ")+j.msg;
+  }catch(e){ $("testResult").textContent="✕ "+e; }
+};
+
+$("btnSave").onclick = save;
+$("btnReload").onclick = load;
+load();
+</script>
+</body>
+</html>

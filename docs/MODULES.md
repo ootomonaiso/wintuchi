@@ -14,11 +14,30 @@
 
 | モジュール | 責務 | 主要シンボル |
 |---|---|---|
-| `main.py` | エントリポイント。各コンポーネントの生成・結線、スレッド跨ぎのマーシャリング、ライフサイクル。 | `main()`, `App`（`run` / `quit` / `_apply_update` / `_req_*`） |
+| `main.py` | エントリポイント。各コンポーネントの生成・結線、スレッド跨ぎのマーシャリング、ライフサイクル。 | `main()`, `App`（`run` / `quit` / `_apply_update` / `_apply_web_config` / `_req_*`） |
 
 `App` は非表示の `ctk.CTk` root を持ち、`Flyout` / `DesktopWidget` / `SettingsWindow` /
-`Poller` / `Tray` / `Notifier` / `AppState` を保持します。tray・poller スレッドからの
+`Poller` / `Tray` / `Notifier` / `AppState` に加え、`OverlayBridge`（Rust オーバーレイ）と
+`ConfigServer`（設定用ローカル HTTP）を保持します。tray・poller スレッドからの
 呼び出しは `_req_*` / `_on_poll_update` が `root.after(0, …)` でメインスレッドへ渡します。
+
+### オーバーレイ連携・設定ダッシュボード（UI 刷新・移行中）
+
+Tk UI を段階的にヘッドレス化し、表示は Rust 製タスクバーオーバーレイ、設定は
+ブラウザで開く HTML ダッシュボードへ移す移行の途中段階です。詳細計画と進捗は
+[`PLAN-headless-rust-overlay.md`](PLAN-headless-rust-overlay.md)。
+
+| モジュール | 責務 | 主要シンボル |
+|---|---|---|
+| `validate.py` | config 全項目の型/範囲フォールバック（UI 門番の代替）。`load_config()` と `POST /config` の両方で適用。 | `normalize(data) -> (clean, warnings)` |
+| `overlay_bridge.py` | 部屋状態→色解決済みチップを `overlay.state.json` へ原子書き出し。overlay exe の spawn/stop。 | `write_state()`, `build_chips()`, `OverlayBridge`（`start` / `stop` / `apply_enabled`） |
+| `httpconfig.py` | 設定用ローカル HTTP（`127.0.0.1` + 起動毎トークン）。tray「設定」からブラウザで開く。 | `ConfigServer`（`start` / `stop` / `url` / `status_payload`） |
+| `settings.html` | CodeZeno 的な設定ダッシュボード（全般 / 部屋 / ウィジェットの 3 タブ・接続テスト・プリセット・検証）。生 JSON を触らせない。 | — （単一 HTML・インライン CSS/JS） |
+
+`httpconfig` のエンドポイント：`GET /`（HTML＋token/presets 注入）/ `GET /config` /
+`POST /config`（`validate.normalize` で正規化し `Config.replace`→`poll_now`）/
+`GET /status`（接続状態・既知の部屋一覧）/ `GET /test`（サーバ側で URL を叩く）。
+全エンドポイントはクエリの `t=<token>` を `secrets.compare_digest` で検証し、無ければ 403。
 
 ### 設定・データモデル
 

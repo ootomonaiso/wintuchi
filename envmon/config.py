@@ -252,12 +252,17 @@ def load_config() -> Config:
             # utf-8-sig: メモ帳等が付与する BOM を許容する
             with open(path, encoding="utf-8-sig") as f:
                 data = json.load(f)
-            data = _deep_merge(DEFAULT_CONFIG, data)
         except (OSError, json.JSONDecodeError) as e:
             log.error("設定の読込に失敗。既定値を使用: %s", e)
             data = copy.deepcopy(DEFAULT_CONFIG)
     else:
         data = copy.deepcopy(DEFAULT_CONFIG)
+    # 型/範囲フォールバック（手編集 config.json を安全化）。UI門番の代替。
+    # ※循環 import を避けるため関数内 import。
+    from .validate import normalize
+    data, warnings = normalize(data)
+    for w in warnings:
+        log.warning("設定の正規化: %s", w)
     cfg = Config(data)
     if not path.exists():
         cfg.save()

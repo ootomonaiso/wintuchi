@@ -4,12 +4,14 @@ from __future__ import annotations
 import logging
 import logging.handlers
 import sys
+import webbrowser
 
 import customtkinter as ctk
 
 from . import startup
 from .config import load_config, log_path
 from .flyout import Flyout
+from .httpconfig import ConfigServer
 from .model import AppState
 from .notifier import Notifier
 from .overlay_bridge import OverlayBridge, write_state as overlay_write_state
@@ -63,9 +65,11 @@ class App:
         self.poller = Poller(self.config, self.state, self.notifier,
                              on_update=self._on_poll_update)
         self.overlay = OverlayBridge(self.config)
+        # 設定用ローカル HTTP（Tk 設定画面の後継。tray「設定」からブラウザで開く）
+        self.httpserver = ConfigServer(self.config, self.state, self._apply_web_config)
         self.tray = Tray(self.state,
                          on_open=self._req_toggle_flyout,
-                         on_settings=self._req_open_settings,
+                         on_settings=self._req_open_web_settings,
                          on_refresh=self.poller.poll_now,
                          on_quit=self._req_quit,
                          on_widget=self._req_toggle_widget,
@@ -78,6 +82,27 @@ class App:
 
     def _req_open_settings(self):
         self.root.after(0, self._open_settings)
+
+    def _req_open_web_settings(self):
+        """tray「設定」: ローカル HTTP の設定ダッシュボードをブラウザで開く。"""
+        try:
+            webbrowser.open(self.httpserver.url)
+        except Exception:
+            log.exception("設定ページを開けませんでした")
+
+    def _apply_web_config(self, clean: dict) -> None:
+        """HTML ダッシュボードからの保存を適用する（HTTP スレッドから呼ばれる）。"""
+        startup.set_startup(bool(clean.get("run_at_startup", False)))
+        self.config.replace(clean)
+        self.poller.poll_now()
+        self.overlay.apply_enabled()
+        # Tk の更新はメインスレッドへマーシャリング
+        self.root.after(0, self._apply_saved)
+
+    def _apply_saved(self):
+        self.tray.refresh()
+        self.widget.apply_enabled()
+        self.widget.refresh()
 
     def _req_toggle_widget(self):
         self.root.after(0, self.widget.toggle)
@@ -119,6 +144,7 @@ class App:
             startup.set_startup(True)
         self.poller.start()
         self.overlay.start()
+        self.httpserver.start()
         self.widget.apply_enabled()
         self.tray.run_detached()
         log.info("EnvMonitor 起動")
@@ -135,6 +161,10 @@ class App:
         self.root.quit()
 
     def _cleanup(self):
+        try:
+            self.httpserver.stop()
+        except Exception:
+            pass
         try:
             self.overlay.stop()
         except Exception:

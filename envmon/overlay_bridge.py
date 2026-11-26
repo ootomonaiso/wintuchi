@@ -130,3 +130,12 @@ class OverlayBridge:
             except Exception:
                 pass
             self.proc = None
+
+    def apply_enabled(self) -> None:
+        """設定の overlay.enabled に合わせて起動/停止を揃える（設定変更後に呼ぶ）。"""
+        running = self.proc is not None and self.proc.poll() is None
+        if self._enabled():
+            if not running:
+                self.start()
+        elif running:
+            self.stop()

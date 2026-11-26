@@ -154,8 +154,8 @@ Python `taskwidget` の Rust 後継。エンジンは汎用（state.json を描�
 - **Phase 1 — Rust PoC（捨てられる）**: `overlay/` 新設。固定 `state.json` を下辺タスクバーに **SetParent 埋め込み**＋per-pixel α 描画。**Tk 版と透過/にじみ/ちらつき/DPI を目視比較**し、かつ **(a) トレイ左に埋め込めるか (b) explorer 再起動から戻れるか** を確認。ゲート: 埋め込み成立＆品質OK? NG なら副系統(オーバーレイ)へ切替 or 中止し Python 継続。
 - **Phase 2 — 契約確定**: state.json スキーマと commands を凍結。`statefile.py` を実装し poller の `on_update` から実データで state.json 書き出し（**この時点では Tk widget も並行動作**＝同じ解決データで比較）。
 - **Phase 3 — overlay 本結線**: live state.json 読取＋commands（toggle/pos/open/reset）。Tk widget と並走させてパリティ確認。
-- **Phase 4 — 設定HTML**: `httpconfig.py`＋`settings.html`＋`validate.py`。tray「設定」をHTMLに。接続テスト/プリセット/検証を復活。
-- **Phase 5 — Tk 撤去**: flyout/widget/settings_ui 削除、theme/main から ctk 剥がし、ヘッドレス main ループ、customtkinter 依存削除。ここで不可逆。
+- **Phase 4 — 設定HTML（実装済 2026-11-26）**: `httpconfig.py`＋`settings.html`＋`validate.py` を新設。tray「設定」→ `webbrowser.open(ConfigServer.url)` でダッシュボードを開く。`127.0.0.1`＋起動毎トークン（無トークンは 403）。`GET /`(HTML＋token/presets 注入)／`GET /config`／`POST /config`(normalize→replace→poll_now→overlay.apply_enabled)／`GET /status`(接続状態・既知の部屋)／`GET /test`(サーバ側で URL を叩く)。`config.load_config` も同じ `validate.normalize` を通し、手編集 config.json を安全化。接続テスト/プリセット/検証を復活。**この段階は非破壊**＝Tk の flyout/widget/settings_ui も並走させたまま（tray「設定」のみ HTML へ）。検証: `tools/_smoke_phase4.py`（validate 補正＋HTTP エンドポイント）。
+- **Phase 5 — Tk 撤去（次）**: flyout/widget/settings_ui 削除、theme/main から ctk 剥がし、ヘッドレス main ループ、customtkinter 依存削除。ここで不可逆。
 - **Phase 6 — 配布・文書**: build.ps1/spec/BUILD.md、README/docs(ARCHITECTURE・MODULES) 更新、memory 更新。
 
 ## 8. リスク・残課題（埋め込み主採用で再評価）
