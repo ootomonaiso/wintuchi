@@ -1,41 +1,44 @@
 # 環境モニタ常駐ソフト (EnvMonitor)
 
 `/env1.php` が配信する環境モニタ（気温・湿度・照度・電圧）を定期取得し、部屋ごとの
-条件を満たしたら **Windowsトースト / Teams(Power Automate) / トレイ＆フライアウトの
-バッジ** で通知する、タスクトレイ常駐アプリです。Windows ログオン時に自動起動できます。
+条件を満たしたら **Windowsトースト / Teams(Power Automate) / トレイアイコンの色** で
+通知する、タスクトレイ常駐アプリです。Windows ログオン時に自動起動できます。
+
+本体（取得・判定・通知・トレイ）は **GUI ツールキットに依存しないヘッドレス Python**。
+タスクバーに追従する**表示ウィジェットは Rust 製の別プロセス `envmon-overlay.exe`**
+（`overlay/`）が担い、本体が状態を `overlay.state.json` に書き出して連携します。
+**設定は HTML ダッシュボード**（トレイ「設定…」→ ローカル HTTP をブラウザで開く）で行います。
 
 ![tray](envmon/assets/app.ico)
 
 ## 主な機能
-- **タスクトレイ常駐**：トレイアイコンをクリックすると、トレイ付近に部屋カードの
-  フライアウトが開く。先頭に概況ピル（「すべて正常」「2件 要確認」など）を表示し、
-  各カードは左の状態アクセントバー＋淡色の状態バッジ＋セグメント（ブロック）バーで
-  値を見せる、Claude-Code-Usage-Monitor 風のコンパクトなUI。アイコン色も状態を表す。
+- **タスクトレイ常駐**：トレイアイコンの色で最悪状態を一目表示（正常/注意/要確認）。
+  右クリックメニューから「オーバーレイ表示/非表示」「設定…」「今すぐ更新」「終了」。
+  ツールチップに「N部屋 / M件のアラート」の概況。
+- **常駐ウィジェット（タスクバー追従・Rust 製 overlay）**：選んだ「部屋 × 指標」を
+  `部屋名` と `値`（例 `35.2℃`）のチップで常時表示。タスクバー矩形(Shell_TrayWnd)と
+  システムトレイ(TrayNotifyWnd)を検出してトレイ左隣へ重ね、追従します。異常は**値の
+  文字色（橙/赤）**で表現。本体とは別プロセスで、本体が色解決済みチップを
+  `overlay.state.json` に書き、overlay は描くだけ（表示内容を解釈しない）。
+  配置・透過・ドラッグ等の詳細は [`overlay/README.md`](overlay/README.md)。
+  ※Win11 はウィジェット埋め込み API が無いため、公式ツール同様オーバーレイ方式。
+- **設定は HTML ダッシュボード**：トレイ「設定…」でローカル HTTP の設定画面が
+  ブラウザで開く（`127.0.0.1`＋起動毎トークンで保護）。保存時に全項目の型/範囲を
+  検証・正規化してから `config.json` に書き込みます。接続テスト・プリセットも同梱。
 - **状態の呼び方は自由**：「異常」のような強い言葉がしっくりこなければ、設定の
   「状態の呼び方」で好きな名前へ（既定は 正常 / 注意 / 要確認 / 応答なし）。
   トーン違いの**プリセット**（やわらかめ / ふつう / きっちり / 英語）をワンクリックで適用でき、
-  決めた名前は画面と Teams 通知の両方に反映されます。
-- **しきい値プリセット**：部屋タブで「快適な居室」「サーバー室」「冷蔵・保冷」「温室・植物」
+  決めた名前は表示と Teams 通知の両方に反映されます。
+- **しきい値プリセット**：「快適な居室」「サーバー室」「冷蔵・保冷」「温室・植物」
   「ゆるめ」「きっちり監視」などを選ぶと、上下限を一発で流し込めます（後から微調整可）。
-- **常駐ウィジェット（タスクバー追従）**：選んだ「部屋 × 指標」を、`部屋名` と `値`（例 `35.2℃`）の
-  **縦2行チップ**で常時表示するミニ窓。指標名は単位（℃/%/lx）で分かるので省略し、異常は
-  **値の文字色（橙/赤）だけ**で表します。2 モード:
-  - **タスクバーの上に出す（追従・既定）**：タスクバー矩形(Shell_TrayWnd)とシステムトレイ
-    (TrayNotifyWnd)を検出し、トレイの左隣へオーバーレイ。**背景は透明**でタスクバーに溶け込み、
-    **タスクバー高さ内に必ず収まるよう縦サイズを自動クランプ**（はみ出し防止）、1.2 秒間隔で
-    移動/サイズ変化に追従。文字をドラッグすると**タスクバー内で横移動**でき、位置（トレイ左端
-    からの間隔 `widget.taskbar_gap`）を記憶します。
-    ※Win11 はウィジェット埋め込み API が無いため、公式ツール同様オーバーレイ方式。
-  - **好きな位置に置く（浮遊）**：常に最前面・ドラッグ移動可・位置記憶。
-  設定の「ウィジェット」タブで表示項目と配置モードを選び、トレイメニュー
-  「ウィジェット表示/非表示」でON/OFF。
 - **部屋ごとの詳細設定**：気温・湿度の上下限、通知チャネルON/OFF（電圧は監視対象外）。
 - **照度ゲート**：「照度≧指定時のみ通知」「照度≦指定時のみ通知」を部屋ごとに選択。
   例）消灯中の無人部屋は通知を抑制／照明つけっぱなし検知に利用。
 - **通知スパム対策**：同一アラートのクールダウン、夜間などの静音時間(Do Not Disturb)、
   閾値付近のヒステリシス。
 - **センサ停止検知**：一定時間データが更新されないセンサを「停止」として通知。
-- **3チャネル通知**：Windowsトースト / Teams Webhook(Power Automate) / フライアウトバッジ。
+- **通知チャネル**：Windowsトースト / Teams Webhook(Power Automate)。状態はトレイ
+  アイコンの色とウィジェットの値の色でも常時わかります。
 - **自動起動**：設定トグルで HKCU...\Run に登録/解除。
 
 ## データ形式（/env1.php）
@@ -58,13 +61,16 @@ python -m venv .venv          # ※OneDrive配下だと同期ロックで失敗�
 ## .exe のビルド
 ```powershell
 pyinstaller build\envmon.spec --distpath dist --workpath build\_work --noconfirm
-# 生成物: dist\EnvMonitor.exe （単一ファイル・ウィンドウなし）
+# 生成物: dist\EnvMonitor.exe （単一ファイル・ウィンドウなし・トレイ常駐）
 ```
 - 既定は onefile。起動の初動速度を優先するなら `build\envmon.spec` の `ONEFILE = False`
   にして onedir ビルド（フォルダ配置）に切替可能。
+- 表示ウィジェット `envmon-overlay.exe`（Rust）は別途 `cargo build --release` で作り、
+  `EnvMonitor.exe` と同じ場所に置く（本体が起動時に自動 spawn）。詳細は
+  [`overlay/README.md`](overlay/README.md)、配布手順は [`BUILD.md`](BUILD.md)。
 
 ## 自動起動（スタートアップ）
-設定画面の「Windows ログオン時に自動起動」をON（＝`HKCU\...\Run` に登録）。
+設定ダッシュボードの「Windows ログオン時に自動起動」をON（＝`HKCU\...\Run` に登録）。
 手動で置きたい場合は `Win+R` → `shell:startup` に `dist\EnvMonitor.exe` のショートカットを置く。
 
 ## 設定ファイル
@@ -85,8 +91,8 @@ pyinstaller build\envmon.spec --distpath dist --workpath build\_work --noconfirm
   （自動登録もしません）。内容はあなたが用意・編集します。
 - **外部で直接編集**して保存すると、次のポーリング周期（既定30秒以内）で**自動反映**されます
   （アプリ再起動不要。壊れたJSONは無視して直前の対応表を維持）。
-- 設定画面の「センサと部屋の対応」では、現在読み込まれている対応表を**読み取り専用で確認**でき、
-  「sensors.json のフォルダを開く」ボタンから編集に進めます。
+- 設定ダッシュボードの「センサと部屋の対応」では、現在読み込まれている対応表を
+  **読み取り専用で確認**でき、`sensors.json` のフォルダを開いて編集に進めます。
 
 ## Power Automate 連携（Teams カスタム通知）
 1. Power Automate で「**自動化したクラウド フロー**」を作成し、トリガに
@@ -125,23 +131,21 @@ $env:ENVMON_SCENARIO="hot"   # normal/hot/lowbatt/mixed
 
 ## 構成
 ```
-envmon/      アプリ本体（config/model/poller/rules/notifier/toast/teams/tray/flyout/settings_ui/startup/icons）
-taskwidget/  タスクバー追従ウィジェットの汎用ライブラリ（envmon のウィジェット部を切り出し）
+envmon/      ヘッドレス本体
+  config/model/poller/rules/notifier/toast/teams  … 取得・判定・通知
+  tray                                            … pystray トレイ
+  httpconfig/settings.html/validate               … 設定ダッシュボード(HTTP+HTML)＋検証
+  overlay_bridge                                  … 状態→state.json＋overlay.exe spawn/stop
+  theme/startup/icons                             … 配色トークン・自動起動・トレイ画像
+overlay/     表示ウィジェット（Rust。tbwidget エンジン＋envmon-overlay バイナリ）
 tools/       モックサーバ・テスト
 build/       PyInstaller spec
 run_envmon.py  ソース実行用ランチャ
 ```
 
-### 汎用ライブラリ `taskwidget/`
-タスクバーに追従する小さなウィジェットを数行で作れる、アプリ非依存のライブラリ。
-EnvMonitor のウィジェット機構（タスクバー検出・追従・クランプ・ドラッグ・透過）を
-汎用化したもので、`envmon/widget.py` もこのライブラリの `geometry` を共有している。
-詳細とサンプルは [`taskwidget/README.md`](taskwidget/README.md)。
-
-```powershell
-python -m taskwidget.examples.clock           # 時計
-python -m taskwidget.examples.system_monitor  # CPU/MEM
-```
+> 旧 Tk(customtkinter) 版の flyout / widget / settings_ui は撤去済み。表示は `overlay/`、
+> 設定は `httpconfig`＋`settings.html` が置き換えています。`taskwidget/`（Python 製の
+> タスクバー追従ライブラリ）は overlay へ役目を移したため現在アプリからは未使用です。
 
 ## 開発者向けドキュメント
 コードを読む・手を入れる場合は `docs/` を参照してください。
