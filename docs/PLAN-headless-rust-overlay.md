@@ -1,6 +1,8 @@
 # 計画書: ヘッドレス Python + Rust タスクバーオーバーレイ・エンジン + JSON全振り
 
-作成: 2026-11-25 / ステータス: 合意形成済み（PoC先行で着手予定）
+作成: 2026-11-25 / 更新: 2026-11-26 / ステータス: **Phase 0〜5 完了・Phase 6 一部完了**（§7 参照）。
+以下は合意形成時の原文（経緯の記録として維持）。現在の実装の正とする場合は
+[`ARCHITECTURE.md`](ARCHITECTURE.md) / [`MODULES.md`](MODULES.md) を参照。
 
 ## 0. 目的と大方針
 現行の Tk(customtkinter) ベース UI を全廃し、**責任を言語で分離**する。
@@ -150,13 +152,13 @@ Python `taskwidget` の Rust 後継。エンジンは汎用（state.json を描�
 - `BUILD.md` 更新。overlay は数百KB〜1MB台想定（WebView系を避けた理由）。
 
 ## 7. 段階移行（各フェーズ独立検証・Phase5 までロールバック可）
-- **Phase 0（着手済）**: 高優先バグ修正（poller 間隔フォールバック / config 保存レース / 静音時の復旧通知 / 設定窓 after ガード / opacity 既定統一）。
-- **Phase 1 — Rust PoC（捨てられる）**: `overlay/` 新設。固定 `state.json` を下辺タスクバーに **SetParent 埋め込み**＋per-pixel α 描画。**Tk 版と透過/にじみ/ちらつき/DPI を目視比較**し、かつ **(a) トレイ左に埋め込めるか (b) explorer 再起動から戻れるか** を確認。ゲート: 埋め込み成立＆品質OK? NG なら副系統(オーバーレイ)へ切替 or 中止し Python 継続。
-- **Phase 2 — 契約確定**: state.json スキーマと commands を凍結。`statefile.py` を実装し poller の `on_update` から実データで state.json 書き出し（**この時点では Tk widget も並行動作**＝同じ解決データで比較）。
-- **Phase 3 — overlay 本結線**: live state.json 読取＋commands（toggle/pos/open/reset）。Tk widget と並走させてパリティ確認。
-- **Phase 4 — 設定HTML（実装済 2026-11-26）**: `httpconfig.py`＋`settings.html`＋`validate.py` を新設。tray「設定」→ `webbrowser.open(ConfigServer.url)` でダッシュボードを開く。`127.0.0.1`＋起動毎トークン（無トークンは 403）。`GET /`(HTML＋token/presets 注入)／`GET /config`／`POST /config`(normalize→replace→poll_now→overlay.apply_enabled)／`GET /status`(接続状態・既知の部屋)／`GET /test`(サーバ側で URL を叩く)。`config.load_config` も同じ `validate.normalize` を通し、手編集 config.json を安全化。接続テスト/プリセット/検証を復活。**この段階は非破壊**＝Tk の flyout/widget/settings_ui も並走させたまま（tray「設定」のみ HTML へ）。検証: `tools/_smoke_phase4.py`（validate 補正＋HTTP エンドポイント）。
-- **Phase 5 — Tk 撤去（次）**: flyout/widget/settings_ui 削除、theme/main から ctk 剥がし、ヘッドレス main ループ、customtkinter 依存削除。ここで不可逆。
-- **Phase 6 — 配布・文書**: build.ps1/spec/BUILD.md、README/docs(ARCHITECTURE・MODULES) 更新、memory 更新。
+- **Phase 0（完了）**: 高優先バグ修正（poller 間隔フォールバック / config 保存レース / 静音時の復旧通知 / 設定窓 after ガード / opacity 既定統一）。
+- **Phase 1 — Rust PoC（完了）**: `overlay/` 新設。採用方式は当初案の SetParent 埋め込みではなく**最前面レイヤードオーバーレイ追従（camp B）**＝Win11 で SetParent 埋め込みは描画されず不採用（§9 原文と相違。実装進捗の詳細は memory `envmon-ui-direction` を参照）。
+- **Phase 2 — 契約確定（完了）**: `overlay.state.json` スキーマ（`{"visible": bool, "chips":[{"label","value","fg"}]}`）を凍結。`overlay_bridge.write_state()` が poller の `on_update` から実データで書き出し。commands/ ディレクトリ方式は不採用（トレイ操作は overlay 自前トレイ＋tray の visible トグルで足りた）。
+- **Phase 3 — overlay 本結線（完了）**: `OverlayBridge.start/stop/apply_enabled` で overlay.exe の spawn/stop を `config.overlay.enabled` に追従。state.json の mtime ポーリングで overlay 側が反映。
+- **Phase 4 — 設定HTML（完了 2026-11-26, commit e19bdad）**: `httpconfig.py`＋`settings.html`＋`validate.py` を新設。tray「設定」→ `webbrowser.open(ConfigServer.url)` でダッシュボードを開く。`127.0.0.1`＋起動毎トークン（無トークンは 403）。`GET /`(HTML＋token/presets 注入)／`GET /config`／`POST /config`(normalize→replace→poll_now→overlay.apply_enabled)／`GET /status`(接続状態・既知の部屋)／`GET /test`(サーバ側で URL を叩く)。`config.load_config` も同じ `validate.normalize` を通し、手編集 config.json を安全化。接続テスト/プリセット/検証を復活。検証: `tools/_smoke_phase4.py`（validate 補正＋HTTP エンドポイント）。
+- **Phase 5 — Tk 撤去（完了 2026-11-26, commit e415fd4・不可逆）**: flyout.py/widget.py/settings_ui.py/tools/preview_* を削除、theme.py は customtkinter 除去＝`resolve()` をレジストリ(`AppsUseLightTheme`)判定へ、main.py は `threading.Event` 待機のヘッドレスループへ、tray.py はメニューを表示トグル/設定/更新/終了に差替、requirements から customtkinter 除去。検証: ヘッドレス起動smoke・`test_logic` 20 PASS・`_smoke_phase4` PASS・import時 tkinter/customtkinter 非ロード確認。
+- **Phase 6 — 配布・文書（一部完了 2026-11-26, commit e9e82d2）**: `build/envmon.spec`（customtkinter 同梱除去・`settings.html` を datas に追加・tkinter/customtkinter を excludes へ）、README/BUILD.md/docs(ARCHITECTURE・MODULES) 更新は完了。**残**: `build.ps1` への cargo ビルド＋`envmon-overlay.exe` の dist 配置の自動化、`taskwidget/`(Python) の退役判断、envmon(pystray) と overlay 自前トレイの**トレイ二重化**解消（overlay 側に `TBWIDGET_NO_TRAY` 相当のトレイ無効化オプションを追加し envmon のトレイへ一元化する方針だが、`overlay/` が別セッションでライブ編集中のため着手を見送り中）。
 
 ## 8. リスク・残課題（埋め込み主採用で再評価）
 - **explorer.exe 再起動で子窓破棄**（最大の実地課題）: `TaskbarCreated` 購読→再構築で対処。PoC の次に実装・検証必須。
